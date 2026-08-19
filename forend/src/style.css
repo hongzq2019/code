@@ -1,0 +1,149 @@
+/* 应用外壳、号码球和响应式页面布局的全局样式。 */
+:root {
+  font-family: Inter, "Microsoft YaHei", sans-serif;
+}
+
+.el-container {
+  min-height: 100vh;
+}
+
+.el-header {
+  display: flex;
+  gap: var(--space-6);
+  align-items: center;
+  height: 64px;
+  padding: 0 7vw;
+  background: var(--color-surface);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.brand {
+  color: var(--color-primary);
+  font-weight: 750;
+  white-space: nowrap;
+}
+
+.el-menu {
+  flex: 1;
+  border-bottom: 0;
+}
+
+.account {
+  margin-left: auto;
+}
+
+.el-main {
+  width: min(1180px, 94vw);
+  margin: auto;
+  padding: 48px 0;
+}
+
+.el-footer {
+  height: auto;
+  padding: var(--space-4) 7vw;
+  background: var(--color-surface);
+}
+
+.el-footer .el-alert {
+  justify-content: center;
+}
+
+.hero {
+  padding: 50px 7%;
+  margin-bottom: 28px;
+  color: #fff;
+  background: linear-gradient(135deg, var(--color-primary), var(--color-primary-dark));
+  border-radius: var(--radius-card);
+}
+
+.hero h1 {
+  max-width: 680px;
+  font-size: clamp(30px, 5vw, 48px);
+  line-height: 1.18;
+}
+
+.hero p {
+  max-width: 650px;
+  line-height: 1.8;
+}
+
+.eyebrow {
+  letter-spacing: 0.1em;
+  opacity: 0.8;
+}
+
+.number-balls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  align-items: center;
+  padding: var(--space-4) 0;
+}
+
+.number-ball {
+  display: inline-grid;
+  width: 34px;
+  height: 34px;
+  color: #fff;
+  font-weight: 700;
+  place-items: center;
+  border-radius: 50%;
+}
+
+.number-ball--front {
+  background: var(--color-front-ball);
+}
+
+.number-ball--back {
+  background: var(--color-back-ball);
+}
+
+.number-balls--small {
+  display: inline-flex;
+  gap: var(--space-1);
+  padding: 0;
+}
+
+.number-balls--small .number-ball {
+  width: 26px;
+  height: 26px;
+  font-size: 12px;
+}
+
+.fields {
+  display: grid;
+  gap: var(--space-3);
+  margin: 18px 0;
+}
+
+.login {
+  max-width: 440px;
+  margin: 8vh auto;
+}
+
+.muted {
+  color: var(--color-text-muted);
+}
+
+@media (max-width: 700px) {
+  .el-header {
+    gap: var(--space-1);
+    padding: 0 12px;
+  }
+
+  .brand {
+    display: none;
+  }
+
+  .el-main {
+    padding-top: 24px;
+  }
+
+  .hero {
+    padding: 28px;
+  }
+
+  .el-menu-item {
+    padding: 0 var(--space-2);
+  }
+}

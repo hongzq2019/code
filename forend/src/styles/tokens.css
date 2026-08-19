@@ -1,0 +1,20 @@
+/* 全站设计令牌：颜色、间距与圆角均由组件样式复用。 */
+:root {
+  --color-primary: #155eef;
+  --color-primary-dark: #004eeb;
+  --color-front-ball: #e63545;
+  --color-back-ball: #2563eb;
+  --color-text: #1d2939;
+  --color-text-muted: #667085;
+  --color-surface: #ffffff;
+  --color-page: #f5f7fb;
+  --color-border: #e5e7eb;
+  --space-1: 0.25rem;
+  --space-2: 0.5rem;
+  --space-3: 0.75rem;
+  --space-4: 1rem;
+  --space-5: 1.25rem;
+  --space-6: 1.5rem;
+  --space-8: 2rem;
+  --radius-card: 1.125rem;
+}

@@ -1,0 +1,5 @@
+#NOTE: This is a Maven Resolver internal implementation file, its format can be changed without prior notice.
+#Thu Aug 13 08:39:25 CST 2026
+http\://edas-public.oss-cn-hangzhou.aliyuncs.com/repository/.error=
+http\://edas-public.oss-cn-hangzhou.aliyuncs.com/repository/.lastUpdated=1786581563251
+https\://maven.aliyun.com/nexus/content/groups/public/.lastUpdated=1786581565793

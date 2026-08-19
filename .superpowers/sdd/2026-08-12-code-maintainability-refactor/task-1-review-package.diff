@@ -1,0 +1,910 @@
+﻿# Task 1 review package
+# Base snapshot: D:\codeWorkSpace\.superpowers\sdd\2026-08-12-code-maintainability-refactor\task-1-before
+# Head: D:\codeWorkSpace\backend
+
+## Stat
+ .../Dockerfile"                                    |  11 +++
+ .../dlt/predictor/lottery/LotteryController.java"  |  51 +++++++++++-
+ .../predictor/lottery/dto/DrawPageResponse.java"   |  10 +++
+ .../dlt/predictor/lottery/dto/DrawResponse.java"   |  22 ++++++
+ .../prediction/PredictionController.java"          |  86 ++++++++++++++++++++-
+ .../prediction/dto/PredictionResponse.java"        |  29 +++++++
+ .../predictor/lottery/dto/DrawResponseTest.java"   |  29 +++++++
+ .../prediction/dto/PredictionResponseTest.java"    |  32 ++++++++
+ .../target/classes/application.yml"                |  10 +++
+ .../dlt/predictor/DltPredictorApplication.class"   | Bin 0 -> 752 bytes
+ .../com/dlt/predictor/admin/AdminController.class" | Bin 0 -> 4669 bytes
+ .../dlt/predictor/api/ApiExceptionHandler.class"   | Bin 0 -> 1434 bytes
+ .../com/dlt/predictor/api/ApiResponse.class"       | Bin 0 -> 2845 bytes
+ .../com/dlt/predictor/auth/AuthController.class"   | Bin 0 -> 3600 bytes
+ .../com/dlt/predictor/auth/AuthService.class"      | Bin 0 -> 4699 bytes
+ .../com/dlt/predictor/auth/Credentials.class"      | Bin 0 -> 2186 bytes
+ .../com/dlt/predictor/auth/UserAccount$Role.class" | Bin 0 -> 1274 bytes
+ .../dlt/predictor/auth/UserAccount$Status.class"   | Bin 0 -> 1396 bytes
+ .../com/dlt/predictor/auth/UserAccount.class"      | Bin 0 -> 2618 bytes
+ .../com/dlt/predictor/config/SecurityConfig.class" | Bin 0 -> 3415 bytes
+ .../com/dlt/predictor/lottery/DltNumbers.class"    | Bin 0 -> 5346 bytes
+ .../classes/com/dlt/predictor/lottery/Draw.class"  | Bin 0 -> 2183 bytes
+ .../com/dlt/predictor/lottery/DrawStore.class"     | Bin 0 -> 4129 bytes
+ .../dlt/predictor/lottery/LotteryController.class" | Bin 0 -> 4557 bytes
+ .../predictor/lottery/dto/DrawPageResponse.class"  | Bin 0 -> 2187 bytes
+ .../dlt/predictor/lottery/dto/DrawResponse.class"  | Bin 0 -> 2596 bytes
+ .../dlt/predictor/prediction/FeatureEncoder.class" | Bin 0 -> 1755 bytes
+ .../prediction/PredictionController.class"         | Bin 0 -> 7060 bytes
+ .../predictor/prediction/PredictionRequest.class"  | Bin 0 -> 2811 bytes
+ .../prediction/RecommendationEngine.class"         | Bin 0 -> 5294 bytes
+ .../prediction/RecommendationResult.class"         | Bin 0 -> 3332 bytes
+ .../dlt/predictor/prediction/SimilarDraw.class"    | Bin 0 -> 2243 bytes
+ .../prediction/dto/PredictionResponse.class"       | Bin 0 -> 3789 bytes
+ .../classes/db/migration/V1__initial_schema.sql"   |  25 ++++++
+ .../compile/default-compile/createdFiles.lst"      |  24 ++++++
+ .../compile/default-compile/inputFiles.lst"        |  20 +++++
+ .../default-testCompile/createdFiles.lst"          |   3 +
+ .../default-testCompile/inputFiles.lst"            |   3 +
+ .../2026-08-12T17-01-19_385.dumpstream"            |   5 ++
+ .../2026-08-12T17-08-12_106.dumpstream"            |   5 ++
+ .../2026-08-12T17-15-35_489.dumpstream"            |   5 ++
+ .../2026-08-12T17-17-18_243.dumpstream"            |   5 ++
+ .../2026-08-12T17-32-52_552.dumpstream"            |   5 ++
+ .../2026-08-12T17-33-10_509.dumpstream"            |   5 ++
+ .../TEST-com.dlt.predictor.CoreDomainTest.xml"     |  63 +++++++++++++++
+ ...dlt.predictor.lottery.dto.DrawResponseTest.xml" |  62 +++++++++++++++
+ ...ctor.prediction.dto.PredictionResponseTest.xml" |  62 +++++++++++++++
+ .../com.dlt.predictor.CoreDomainTest.txt"          |   4 +
+ ...dlt.predictor.lottery.dto.DrawResponseTest.txt" |   4 +
+ ...ctor.prediction.dto.PredictionResponseTest.txt" |   4 +
+ .../com/dlt/predictor/CoreDomainTest.class"        | Bin 0 -> 3374 bytes
+ .../predictor/lottery/dto/DrawResponseTest.class"  | Bin 0 -> 1939 bytes
+ .../prediction/dto/PredictionResponseTest.class"   | Bin 0 -> 2438 bytes
+ 53 files changed, 579 insertions(+), 5 deletions(-)
+
+## Full diff
+diff --git "a/D:\\codeWorkSpace\\backend/Dockerfile" "b/D:\\codeWorkSpace\\backend/Dockerfile"
+new file mode 100644
+index 0000000..304598e
+--- /dev/null
++++ "b/D:\\codeWorkSpace\\backend/Dockerfile"
+@@ -0,0 +1,11 @@
++FROM maven:3.9.9-eclipse-temurin-21 AS build
++WORKDIR /app
++COPY pom.xml .
++RUN mvn -q -DskipTests dependency:go-offline
++COPY src src
++RUN mvn -q -DskipTests package
++FROM eclipse-temurin:21-jre
++WORKDIR /app
++COPY --from=build /app/target/dlt-predictor-api-1.0.0.jar app.jar
++EXPOSE 8080
++ENTRYPOINT ["java","-jar","app.jar"]
+diff --git "a/D:\\codeWorkSpace\\.superpowers\\sdd\\2026-08-12-code-maintainability-refactor\\task-1-before/src/main/java/com/dlt/predictor/lottery/LotteryController.java" "b/D:\\codeWorkSpace\\backend/src/main/java/com/dlt/predictor/lottery/LotteryController.java"
+index 9ba883a..9ee31eb 100644
+--- "a/D:\\codeWorkSpace\\.superpowers\\sdd\\2026-08-12-code-maintainability-refactor\\task-1-before/src/main/java/com/dlt/predictor/lottery/LotteryController.java"
++++ "b/D:\\codeWorkSpace\\backend/src/main/java/com/dlt/predictor/lottery/LotteryController.java"
+@@ -1,2 +1,49 @@
+-package com.dlt.predictor.lottery;import com.dlt.predictor.api.ApiResponse;import org.springframework.web.bind.annotation.*;import java.time.LocalDate;import java.util.*;
+-@RestController @RequestMapping("/api/v1/dlt/draws") public class LotteryController{private final DrawStore store;LotteryController(DrawStore s){store=s;}@GetMapping public ApiResponse<Map<String,Object>>page(@RequestParam(defaultValue="1")int page,@RequestParam(defaultValue="20")int size,@RequestParam(required=false)String issueNo){var all=store.all().stream().filter(d->issueNo==null||d.issueNo().contains(issueNo)).toList();int from=Math.min(Math.max(0,(page-1)*Math.min(size,100)),all.size()),to=Math.min(from+Math.min(size,100),all.size());return ApiResponse.ok(Map.of("items",all.subList(from,to),"page",page,"size",size,"total",all.size()));}@GetMapping("/{issueNo}")ApiResponse<Draw>detail(@PathVariable String issueNo){return ApiResponse.ok(store.find(issueNo).orElseThrow(()->new IllegalArgumentException("期号不存在")));}}
++package com.dlt.predictor.lottery;
++
++import com.dlt.predictor.api.ApiResponse;
++import com.dlt.predictor.lottery.dto.DrawPageResponse;
++import com.dlt.predictor.lottery.dto.DrawResponse;
++import java.util.List;
++import org.springframework.web.bind.annotation.GetMapping;
++import org.springframework.web.bind.annotation.PathVariable;
++import org.springframework.web.bind.annotation.RequestMapping;
++import org.springframework.web.bind.annotation.RequestParam;
++import org.springframework.web.bind.annotation.RestController;
++
++@RestController
++@RequestMapping("/api/v1/dlt/draws")
++public class LotteryController {
++
++    private static final int MAX_PAGE_SIZE = 100;
++
++    private final DrawStore drawStore;
++
++    LotteryController(DrawStore drawStore) {
++        this.drawStore = drawStore;
++    }
++
++    @GetMapping
++    public ApiResponse<DrawPageResponse> page(
++            @RequestParam(defaultValue = "1") int page,
++            @RequestParam(defaultValue = "20") int size,
++            @RequestParam(required = false) String issueNo) {
++        List<Draw> matchingDraws = drawStore.all().stream()
++                .filter(draw -> issueNo == null || draw.issueNo().contains(issueNo))
++                .toList();
++        int effectivePageSize = Math.min(size, MAX_PAGE_SIZE);
++        int startIndex = Math.min(Math.max(0, (page - 1) * effectivePageSize), matchingDraws.size());
++        int endIndex = Math.min(startIndex + effectivePageSize, matchingDraws.size());
++        List<DrawResponse> items = matchingDraws.subList(startIndex, endIndex).stream()
++                .map(DrawResponse::from)
++                .toList();
++
++        return ApiResponse.ok(new DrawPageResponse(items, page, size, matchingDraws.size()));
++    }
++
++    @GetMapping("/{issueNo}")
++    public ApiResponse<DrawResponse> detail(@PathVariable String issueNo) {
++        Draw draw = drawStore.find(issueNo)
++                .orElseThrow(() -> new IllegalArgumentException("期号不存在"));
++        return ApiResponse.ok(DrawResponse.from(draw));
++    }
++}
+diff --git "a/D:\\codeWorkSpace\\backend/src/main/java/com/dlt/predictor/lottery/dto/DrawPageResponse.java" "b/D:\\codeWorkSpace\\backend/src/main/java/com/dlt/predictor/lottery/dto/DrawPageResponse.java"
+new file mode 100644
+index 0000000..e85526a
+--- /dev/null
++++ "b/D:\\codeWorkSpace\\backend/src/main/java/com/dlt/predictor/lottery/dto/DrawPageResponse.java"
+@@ -0,0 +1,10 @@
++package com.dlt.predictor.lottery.dto;
++
++import java.util.List;
++
++public record DrawPageResponse(
++        List<DrawResponse> items,
++        int page,
++        int size,
++        long total) {
++}
+diff --git "a/D:\\codeWorkSpace\\backend/src/main/java/com/dlt/predictor/lottery/dto/DrawResponse.java" "b/D:\\codeWorkSpace\\backend/src/main/java/com/dlt/predictor/lottery/dto/DrawResponse.java"
+new file mode 100644
+index 0000000..da65b42
+--- /dev/null
++++ "b/D:\\codeWorkSpace\\backend/src/main/java/com/dlt/predictor/lottery/dto/DrawResponse.java"
+@@ -0,0 +1,22 @@
++package com.dlt.predictor.lottery.dto;
++
++import com.dlt.predictor.lottery.DltNumbers;
++import com.dlt.predictor.lottery.Draw;
++import java.time.LocalDate;
++
++public record DrawResponse(
++        Long id,
++        String issueNo,
++        LocalDate drawDate,
++        DltNumbers numbers,
++        String sourceUrl) {
++
++    public static DrawResponse from(Draw draw) {
++        return new DrawResponse(
++                draw.id(),
++                draw.issueNo(),
++                draw.drawDate(),
++                draw.numbers(),
++                draw.sourceUrl());
++    }
++}
+diff --git "a/D:\\codeWorkSpace\\.superpowers\\sdd\\2026-08-12-code-maintainability-refactor\\task-1-before/src/main/java/com/dlt/predictor/prediction/PredictionController.java" "b/D:\\codeWorkSpace\\backend/src/main/java/com/dlt/predictor/prediction/PredictionController.java"
+index 2b8b275..b6fbb47 100644
+--- "a/D:\\codeWorkSpace\\.superpowers\\sdd\\2026-08-12-code-maintainability-refactor\\task-1-before/src/main/java/com/dlt/predictor/prediction/PredictionController.java"
++++ "b/D:\\codeWorkSpace\\backend/src/main/java/com/dlt/predictor/prediction/PredictionController.java"
+@@ -1,3 +1,83 @@
+-package com.dlt.predictor.prediction;import com.dlt.predictor.api.ApiResponse;import com.dlt.predictor.lottery.*;import jakarta.validation.Valid;import jakarta.validation.constraints.*;import org.springframework.web.bind.annotation.*;import java.time.LocalDate;import java.util.*;
+-@RestController @RequestMapping("/api/v1/dlt/predictions") public class PredictionController{private final DrawStore store;private final RecommendationEngine engine=new RecommendationEngine();PredictionController(DrawStore s){store=s;}@PostMapping public ApiResponse<RecommendationResult>create(@Valid @RequestBody PredictionRequest req){DltNumbers input="CUSTOM_NUMBERS".equals(req.inputType())?DltNumbers.of(req.frontNumbers(),req.backNumbers()):store.all().stream().findFirst().orElseThrow(()->new IllegalArgumentException("没有开奖数据")).numbers();var similar=store.all().stream().filter(d->!d.numbers().equals(input)).map(d->new SimilarDraw(d.id(),d.issueNo(),d.drawDate(),d.numbers(),cosine(FeatureEncoder.encode(input),FeatureEncoder.encode(d.numbers())))).sorted(Comparator.comparingDouble(SimilarDraw::similarity).reversed()).limit(Math.min(req.topK(),10)).toList();return ApiResponse.ok(engine.recommend(similar,LocalDate.now()));}private double cosine(float[]a,float[]b){double s=0;for(int i=0;i<a.length;i++)s+=a[i]*b[i];return s;}}
+-record PredictionRequest(@NotBlank String inputType,@Min(1)@Max(10) int topK,List<Integer>frontNumbers,List<Integer>backNumbers){}
++package com.dlt.predictor.prediction;
++
++import com.dlt.predictor.api.ApiResponse;
++import com.dlt.predictor.lottery.DltNumbers;
++import com.dlt.predictor.lottery.Draw;
++import com.dlt.predictor.lottery.DrawStore;
++import com.dlt.predictor.prediction.dto.PredictionResponse;
++import jakarta.validation.Valid;
++import jakarta.validation.constraints.Max;
++import jakarta.validation.constraints.Min;
++import jakarta.validation.constraints.NotBlank;
++import java.time.LocalDate;
++import java.util.Comparator;
++import java.util.List;
++import org.springframework.web.bind.annotation.PostMapping;
++import org.springframework.web.bind.annotation.RequestBody;
++import org.springframework.web.bind.annotation.RequestMapping;
++import org.springframework.web.bind.annotation.RestController;
++
++@RestController
++@RequestMapping("/api/v1/dlt/predictions")
++public class PredictionController {
++
++    private static final String CUSTOM_NUMBERS_INPUT = "CUSTOM_NUMBERS";
++
++    private final DrawStore drawStore;
++    private final RecommendationEngine recommendationEngine;
++
++    PredictionController(DrawStore drawStore) {
++        this.drawStore = drawStore;
++        this.recommendationEngine = new RecommendationEngine();
++    }
++
++    @PostMapping
++    public ApiResponse<PredictionResponse> create(@Valid @RequestBody PredictionRequest request) {
++        DltNumbers input = resolveInput(request);
++        List<SimilarDraw> similarDraws = findSimilarDraws(input, request.topK());
++        RecommendationResult result = recommendationEngine.recommend(similarDraws, LocalDate.now());
++
++        return ApiResponse.ok(PredictionResponse.from(result));
++    }
++
++    private DltNumbers resolveInput(PredictionRequest request) {
++        if (CUSTOM_NUMBERS_INPUT.equals(request.inputType())) {
++            return DltNumbers.of(request.frontNumbers(), request.backNumbers());
++        }
++
++        return drawStore.all().stream()
++                .findFirst()
++                .orElseThrow(() -> new IllegalArgumentException("没有开奖数据"))
++                .numbers();
++    }
++
++    private List<SimilarDraw> findSimilarDraws(DltNumbers input, int topK) {
++        float[] inputVector = FeatureEncoder.encode(input);
++        return drawStore.all().stream()
++                .filter(draw -> !draw.numbers().equals(input))
++                .map(draw -> toSimilarDraw(draw, inputVector))
++                .sorted(Comparator.comparingDouble(SimilarDraw::similarity).reversed())
++                .limit(Math.min(topK, 10))
++                .toList();
++    }
++
++    private SimilarDraw toSimilarDraw(Draw draw, float[] inputVector) {
++        double similarity = cosine(inputVector, FeatureEncoder.encode(draw.numbers()));
++        return new SimilarDraw(draw.id(), draw.issueNo(), draw.drawDate(), draw.numbers(), similarity);
++    }
++
++    private double cosine(float[] left, float[] right) {
++        double similarity = 0;
++        for (int index = 0; index < left.length; index++) {
++            similarity += left[index] * right[index];
++        }
++        return similarity;
++    }
++}
++
++record PredictionRequest(
++        @NotBlank String inputType,
++        @Min(1) @Max(10) int topK,
++        List<Integer> frontNumbers,
++        List<Integer> backNumbers) {
++}
+diff --git "a/D:\\codeWorkSpace\\backend/src/main/java/com/dlt/predictor/prediction/dto/PredictionResponse.java" "b/D:\\codeWorkSpace\\backend/src/main/java/com/dlt/predictor/prediction/dto/PredictionResponse.java"
+new file mode 100644
+index 0000000..2cd1d07
+--- /dev/null
++++ "b/D:\\codeWorkSpace\\backend/src/main/java/com/dlt/predictor/prediction/dto/PredictionResponse.java"
+@@ -0,0 +1,29 @@
++package com.dlt.predictor.prediction.dto;
++
++import com.dlt.predictor.lottery.DltNumbers;
++import com.dlt.predictor.prediction.RecommendationResult;
++import com.dlt.predictor.prediction.SimilarDraw;
++import java.time.Instant;
++import java.util.List;
++import java.util.Map;
++
++public record PredictionResponse(
++        DltNumbers numbers,
++        Map<Integer, Double> frontScores,
++        Map<Integer, Double> backScores,
++        List<SimilarDraw> similarDraws,
++        String modelVersion,
++        Instant generatedAt,
++        String disclaimer) {
++
++    public static PredictionResponse from(RecommendationResult result) {
++        return new PredictionResponse(
++                result.numbers(),
++                result.frontScores(),
++                result.backScores(),
++                result.similarDraws(),
++                result.modelVersion(),
++                result.generatedAt(),
++                result.disclaimer());
++    }
++}
+diff --git "a/D:\\codeWorkSpace\\backend/src/test/java/com/dlt/predictor/lottery/dto/DrawResponseTest.java" "b/D:\\codeWorkSpace\\backend/src/test/java/com/dlt/predictor/lottery/dto/DrawResponseTest.java"
+new file mode 100644
+index 0000000..09fab5c
+--- /dev/null
++++ "b/D:\\codeWorkSpace\\backend/src/test/java/com/dlt/predictor/lottery/dto/DrawResponseTest.java"
+@@ -0,0 +1,29 @@
++package com.dlt.predictor.lottery.dto;
++
++import com.dlt.predictor.lottery.DltNumbers;
++import com.dlt.predictor.lottery.Draw;
++import java.time.LocalDate;
++import java.util.List;
++import org.junit.jupiter.api.Test;
++
++import static org.junit.jupiter.api.Assertions.assertEquals;
++
++class DrawResponseTest {
++
++    @Test
++    void mapsDrawWithoutChangingJsonFieldValues() {
++        Draw draw = new Draw(
++                7L,
++                "2025007",
++                LocalDate.of(2025, 1, 1),
++                DltNumbers.of(List.of(1, 2, 3, 4, 5), List.of(1, 2)),
++                "manual");
++
++        DrawResponse response = DrawResponse.from(draw);
++
++        assertEquals(7L, response.id());
++        assertEquals("2025007", response.issueNo());
++        assertEquals(draw.numbers(), response.numbers());
++        assertEquals("manual", response.sourceUrl());
++    }
++}
+diff --git "a/D:\\codeWorkSpace\\backend/src/test/java/com/dlt/predictor/prediction/dto/PredictionResponseTest.java" "b/D:\\codeWorkSpace\\backend/src/test/java/com/dlt/predictor/prediction/dto/PredictionResponseTest.java"
+new file mode 100644
+index 0000000..5f47979
+--- /dev/null
++++ "b/D:\\codeWorkSpace\\backend/src/test/java/com/dlt/predictor/prediction/dto/PredictionResponseTest.java"
+@@ -0,0 +1,32 @@
++package com.dlt.predictor.prediction.dto;
++
++import com.dlt.predictor.lottery.DltNumbers;
++import com.dlt.predictor.prediction.RecommendationEngine;
++import com.dlt.predictor.prediction.RecommendationResult;
++import com.dlt.predictor.prediction.SimilarDraw;
++import java.time.LocalDate;
++import java.util.List;
++import org.junit.jupiter.api.Test;
++
++import static org.junit.jupiter.api.Assertions.assertEquals;
++
++class PredictionResponseTest {
++
++    @Test
++    void keepsRecommendationPayloadFields() {
++        SimilarDraw draw = new SimilarDraw(
++                1L,
++                "2025001",
++                LocalDate.now().minusDays(8),
++                DltNumbers.of(List.of(1, 2, 3, 4, 5), List.of(1, 2)),
++                0.9);
++        RecommendationResult result = new RecommendationEngine().recommend(List.of(draw), LocalDate.now());
++
++        PredictionResponse response = PredictionResponse.from(result);
++
++        assertEquals("mvp-1.0", response.modelVersion());
++        assertEquals(result.disclaimer(), response.disclaimer());
++        assertEquals(result.numbers(), response.numbers());
++        assertEquals(result.similarDraws(), response.similarDraws());
++    }
++}
+diff --git "a/D:\\codeWorkSpace\\backend/target/classes/application.yml" "b/D:\\codeWorkSpace\\backend/target/classes/application.yml"
+new file mode 100644
+index 0000000..6911063
+--- /dev/null
++++ "b/D:\\codeWorkSpace\\backend/target/classes/application.yml"
+@@ -0,0 +1,10 @@
++spring:
++  application: { name: dlt-predictor }
++  datasource:
++    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5432/dlt}
++    username: ${SPRING_DATASOURCE_USERNAME:dlt}
++    password: ${SPRING_DATASOURCE_PASSWORD:dlt}
++  jpa: { hibernate: { ddl-auto: validate }, open-in-view: false }
++  flyway: { enabled: true }
++server: { port: 8080 }
++management: { endpoints: { web: { exposure: { include: health,info } } } }
+diff --git "a/D:\\codeWorkSpace\\backend/target/classes/com/dlt/predictor/DltPredictorApplication.class" "b/D:\\codeWorkSpace\\backend/target/classes/com/dlt/predictor/DltPredictorApplication.class"
+new file mode 100644
+index 0000000..36a4484
+Binary files /dev/null and "b/D:\\codeWorkSpace\\backend/target/classes/com/dlt/predictor/DltPredictorApplication.class" differ
+diff --git "a/D:\\codeWorkSpace\\backend/target/classes/com/dlt/predictor/admin/AdminController.class" "b/D:\\codeWorkSpace\\backend/target/classes/com/dlt/predictor/admin/AdminController.class"
+new file mode 100644
+index 0000000..537ce86
+Binary files /dev/null and "b/D:\\codeWorkSpace\\backend/target/classes/com/dlt/predictor/admin/AdminController.class" differ
+diff --git "a/D:\\codeWorkSpace\\backend/target/classes/com/dlt/predictor/api/ApiExceptionHandler.class" "b/D:\\codeWorkSpace\\backend/target/classes/com/dlt/predictor/api/ApiExceptionHandler.class"
+new file mode 100644
+index 0000000..e1a055a
+Binary files /dev/null and "b/D:\\codeWorkSpace\\backend/target/classes/com/dlt/predictor/api/ApiExceptionHandler.class" differ
+diff --git "a/D:\\codeWorkSpace\\backend/target/classes/com/dlt/predictor/api/ApiResponse.class" "b/D:\\codeWorkSpace\\backend/target/classes/com/dlt/predictor/api/ApiResponse.class"
+new file mode 100644
+index 0000000..256a516
+Binary files /dev/null and "b/D:\\codeWorkSpace\\backend/target/classes/com/dlt/predictor/api/ApiResponse.class" differ
+diff --git "a/D:\\codeWorkSpace\\backend/target/classes/com/dlt/predictor/auth/AuthController.class" "b/D:\\codeWorkSpace\\backend/target/classes/com/dlt/predictor/auth/AuthController.class"
+new file mode 100644
+index 0000000..4746d1f
+Binary files /dev/null and "b/D:\\codeWorkSpace\\backend/target/classes/com/dlt/predictor/auth/AuthController.class" differ
+diff --git "a/D:\\codeWorkSpace\\backend/target/classes/com/dlt/predictor/auth/AuthService.class" "b/D:\\codeWorkSpace\\backend/target/classes/com/dlt/predictor/auth/AuthService.class"
+new file mode 100644
+index 0000000..3e8097f
+Binary files /dev/null and "b/D:\\codeWorkSpace\\backend/target/classes/com/dlt/predictor/auth/AuthService.class" differ
+diff --git "a/D:\\codeWorkSpace\\backend/target/classes/com/dlt/predictor/auth/Credentials.class" "b/D:\\codeWorkSpace\\backend/target/classes/com/dlt/predictor/auth/Credentials.class"
+new file mode 100644
+index 0000000..765919a
+Binary files /dev/null and "b/D:\\codeWorkSpace\\backend/target/classes/com/dlt/predictor/auth/Credentials.class" differ
+diff --git "a/D:\\codeWorkSpace\\backend/target/classes/com/dlt/predictor/auth/UserAccount$Role.class" "b/D:\\codeWorkSpace\\backend/target/classes/com/dlt/predictor/auth/UserAccount$Role.class"
+new file mode 100644
+index 0000000..4d219aa
+Binary files /dev/null and "b/D:\\codeWorkSpace\\backend/target/classes/com/dlt/predictor/auth/UserAccount$Role.class" differ
+diff --git "a/D:\\codeWorkSpace\\backend/target/classes/com/dlt/predictor/auth/UserAccount$Status.class" "b/D:\\codeWorkSpace\\backend/target/classes/com/dlt/predictor/auth/UserAccount$Status.class"
+new file mode 100644
+index 0000000..75e15c6
+Binary files /dev/null and "b/D:\\codeWorkSpace\\backend/target/classes/com/dlt/predictor/auth/UserAccount$Status.class" differ
+diff --git "a/D:\\codeWorkSpace\\backend/target/classes/com/dlt/predictor/auth/UserAccount.class" "b/D:\\codeWorkSpace\\backend/target/classes/com/dlt/predictor/auth/UserAccount.class"
+new file mode 100644
+index 0000000..de87342
+Binary files /dev/null and "b/D:\\codeWorkSpace\\backend/target/classes/com/dlt/predictor/auth/UserAccount.class" differ
+diff --git "a/D:\\codeWorkSpace\\backend/target/classes/com/dlt/predictor/config/SecurityConfig.class" "b/D:\\codeWorkSpace\\backend/target/classes/com/dlt/predictor/config/SecurityConfig.class"
+new file mode 100644
+index 0000000..39ed23f
+Binary files /dev/null and "b/D:\\codeWorkSpace\\backend/target/classes/com/dlt/predictor/config/SecurityConfig.class" differ
+diff --git "a/D:\\codeWorkSpace\\backend/target/classes/com/dlt/predictor/lottery/DltNumbers.class" "b/D:\\codeWorkSpace\\backend/target/classes/com/dlt/predictor/lottery/DltNumbers.class"
+new file mode 100644
+index 0000000..cc670a7
+Binary files /dev/null and "b/D:\\codeWorkSpace\\backend/target/classes/com/dlt/predictor/lottery/DltNumbers.class" differ
+diff --git "a/D:\\codeWorkSpace\\backend/target/classes/com/dlt/predictor/lottery/Draw.class" "b/D:\\codeWorkSpace\\backend/target/classes/com/dlt/predictor/lottery/Draw.class"
+new file mode 100644
+index 0000000..2dafd5d
+Binary files /dev/null and "b/D:\\codeWorkSpace\\backend/target/classes/com/dlt/predictor/lottery/Draw.class" differ
+diff --git "a/D:\\codeWorkSpace\\backend/target/classes/com/dlt/predictor/lottery/DrawStore.class" "b/D:\\codeWorkSpace\\backend/target/classes/com/dlt/predictor/lottery/DrawStore.class"
+new file mode 100644
+index 0000000..7cebbf7
+Binary files /dev/null and "b/D:\\codeWorkSpace\\backend/target/classes/com/dlt/predictor/lottery/DrawStore.class" differ
+diff --git "a/D:\\codeWorkSpace\\backend/target/classes/com/dlt/predictor/lottery/LotteryController.class" "b/D:\\codeWorkSpace\\backend/target/classes/com/dlt/predictor/lottery/LotteryController.class"
+new file mode 100644
+index 0000000..48094d9
+Binary files /dev/null and "b/D:\\codeWorkSpace\\backend/target/classes/com/dlt/predictor/lottery/LotteryController.class" differ
+diff --git "a/D:\\codeWorkSpace\\backend/target/classes/com/dlt/predictor/lottery/dto/DrawPageResponse.class" "b/D:\\codeWorkSpace\\backend/target/classes/com/dlt/predictor/lottery/dto/DrawPageResponse.class"
+new file mode 100644
+index 0000000..e9ccffc
+Binary files /dev/null and "b/D:\\codeWorkSpace\\backend/target/classes/com/dlt/predictor/lottery/dto/DrawPageResponse.class" differ
+diff --git "a/D:\\codeWorkSpace\\backend/target/classes/com/dlt/predictor/lottery/dto/DrawResponse.class" "b/D:\\codeWorkSpace\\backend/target/classes/com/dlt/predictor/lottery/dto/DrawResponse.class"
+new file mode 100644
+index 0000000..e5549be
+Binary files /dev/null and "b/D:\\codeWorkSpace\\backend/target/classes/com/dlt/predictor/lottery/dto/DrawResponse.class" differ
+diff --git "a/D:\\codeWorkSpace\\backend/target/classes/com/dlt/predictor/prediction/FeatureEncoder.class" "b/D:\\codeWorkSpace\\backend/target/classes/com/dlt/predictor/prediction/FeatureEncoder.class"
+new file mode 100644
+index 0000000..8c25932
+Binary files /dev/null and "b/D:\\codeWorkSpace\\backend/target/classes/com/dlt/predictor/prediction/FeatureEncoder.class" differ
+diff --git "a/D:\\codeWorkSpace\\backend/target/classes/com/dlt/predictor/prediction/PredictionController.class" "b/D:\\codeWorkSpace\\backend/target/classes/com/dlt/predictor/prediction/PredictionController.class"
+new file mode 100644
+index 0000000..6bce3d5
+Binary files /dev/null and "b/D:\\codeWorkSpace\\backend/target/classes/com/dlt/predictor/prediction/PredictionController.class" differ
+diff --git "a/D:\\codeWorkSpace\\backend/target/classes/com/dlt/predictor/prediction/PredictionRequest.class" "b/D:\\codeWorkSpace\\backend/target/classes/com/dlt/predictor/prediction/PredictionRequest.class"
+new file mode 100644
+index 0000000..324e434
+Binary files /dev/null and "b/D:\\codeWorkSpace\\backend/target/classes/com/dlt/predictor/prediction/PredictionRequest.class" differ
+diff --git "a/D:\\codeWorkSpace\\backend/target/classes/com/dlt/predictor/prediction/RecommendationEngine.class" "b/D:\\codeWorkSpace\\backend/target/classes/com/dlt/predictor/prediction/RecommendationEngine.class"
+new file mode 100644
+index 0000000..e9f7c0b
+Binary files /dev/null and "b/D:\\codeWorkSpace\\backend/target/classes/com/dlt/predictor/prediction/RecommendationEngine.class" differ
+diff --git "a/D:\\codeWorkSpace\\backend/target/classes/com/dlt/predictor/prediction/RecommendationResult.class" "b/D:\\codeWorkSpace\\backend/target/classes/com/dlt/predictor/prediction/RecommendationResult.class"
+new file mode 100644
+index 0000000..07e20b7
+Binary files /dev/null and "b/D:\\codeWorkSpace\\backend/target/classes/com/dlt/predictor/prediction/RecommendationResult.class" differ
+diff --git "a/D:\\codeWorkSpace\\backend/target/classes/com/dlt/predictor/prediction/SimilarDraw.class" "b/D:\\codeWorkSpace\\backend/target/classes/com/dlt/predictor/prediction/SimilarDraw.class"
+new file mode 100644
+index 0000000..528e3ae
+Binary files /dev/null and "b/D:\\codeWorkSpace\\backend/target/classes/com/dlt/predictor/prediction/SimilarDraw.class" differ
+diff --git "a/D:\\codeWorkSpace\\backend/target/classes/com/dlt/predictor/prediction/dto/PredictionResponse.class" "b/D:\\codeWorkSpace\\backend/target/classes/com/dlt/predictor/prediction/dto/PredictionResponse.class"
+new file mode 100644
+index 0000000..487023b
+Binary files /dev/null and "b/D:\\codeWorkSpace\\backend/target/classes/com/dlt/predictor/prediction/dto/PredictionResponse.class" differ
+diff --git "a/D:\\codeWorkSpace\\backend/target/classes/db/migration/V1__initial_schema.sql" "b/D:\\codeWorkSpace\\backend/target/classes/db/migration/V1__initial_schema.sql"
+new file mode 100644
+index 0000000..529b682
+--- /dev/null
++++ "b/D:\\codeWorkSpace\\backend/target/classes/db/migration/V1__initial_schema.sql"
+@@ -0,0 +1,25 @@
++CREATE TABLE IF NOT EXISTS sys_user (
++  id BIGSERIAL PRIMARY KEY, username VARCHAR(40) NOT NULL UNIQUE, password_hash VARCHAR(100) NOT NULL,
++  role VARCHAR(16) NOT NULL, status VARCHAR(16) NOT NULL, must_change_password BOOLEAN NOT NULL DEFAULT FALSE,
++  approved_by BIGINT, approved_at TIMESTAMP WITH TIME ZONE, created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP
++);
++CREATE TABLE IF NOT EXISTS dlt_draw (
++  id BIGSERIAL PRIMARY KEY, issue_no VARCHAR(32) NOT NULL UNIQUE, draw_date DATE NOT NULL,
++  front_numbers VARCHAR(32) NOT NULL, back_numbers VARCHAR(16) NOT NULL, source_url TEXT, source_payload TEXT,
++  status VARCHAR(16) NOT NULL DEFAULT 'VALID', vector_status VARCHAR(16) NOT NULL DEFAULT 'PENDING', created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP
++);
++CREATE INDEX IF NOT EXISTS idx_dlt_draw_date ON dlt_draw(draw_date);
++CREATE TABLE IF NOT EXISTS dlt_draw_number (
++  id BIGSERIAL PRIMARY KEY, draw_id BIGINT NOT NULL REFERENCES dlt_draw(id) ON DELETE CASCADE, zone VARCHAR(8) NOT NULL,
++  position SMALLINT NOT NULL, number SMALLINT NOT NULL, UNIQUE(draw_id,zone,position)
++);
++CREATE TABLE IF NOT EXISTS crawler_job_log (
++  id BIGSERIAL PRIMARY KEY, job_type VARCHAR(64) NOT NULL, started_at TIMESTAMP WITH TIME ZONE NOT NULL,
++  finished_at TIMESTAMP WITH TIME ZONE, result VARCHAR(16) NOT NULL, fetched_count INTEGER NOT NULL DEFAULT 0,
++  inserted_count INTEGER NOT NULL DEFAULT 0, error_message TEXT
++);
++CREATE TABLE IF NOT EXISTS prediction_record (
++  id BIGSERIAL PRIMARY KEY, user_id BIGINT REFERENCES sys_user(id), input_type VARCHAR(32) NOT NULL,
++  input_draw_id BIGINT REFERENCES dlt_draw(id), front_numbers VARCHAR(32) NOT NULL, back_numbers VARCHAR(16) NOT NULL,
++  similar_draw_ids TEXT, model_version VARCHAR(32) NOT NULL, created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP
++);
+diff --git "a/D:\\codeWorkSpace\\backend/target/maven-status/maven-compiler-plugin/compile/default-compile/createdFiles.lst" "b/D:\\codeWorkSpace\\backend/target/maven-status/maven-compiler-plugin/compile/default-compile/createdFiles.lst"
+new file mode 100644
+index 0000000..e65cf94
+--- /dev/null
++++ "b/D:\\codeWorkSpace\\backend/target/maven-status/maven-compiler-plugin/compile/default-compile/createdFiles.lst"
+@@ -0,0 +1,24 @@
++com\dlt\predictor\auth\AuthController.class
++com\dlt\predictor\config\SecurityConfig.class
++com\dlt\predictor\auth\AuthService.class
++com\dlt\predictor\prediction\dto\PredictionResponse.class
++com\dlt\predictor\api\ApiExceptionHandler.class
++com\dlt\predictor\auth\UserAccount$Status.class
++com\dlt\predictor\api\ApiResponse.class
++com\dlt\predictor\lottery\DrawStore.class
++com\dlt\predictor\auth\UserAccount.class
++com\dlt\predictor\admin\AdminController.class
++com\dlt\predictor\DltPredictorApplication.class
++com\dlt\predictor\lottery\DltNumbers.class
++com\dlt\predictor\lottery\LotteryController.class
++com\dlt\predictor\lottery\dto\DrawResponse.class
++com\dlt\predictor\prediction\RecommendationEngine.class
++com\dlt\predictor\prediction\RecommendationResult.class
++com\dlt\predictor\auth\UserAccount$Role.class
++com\dlt\predictor\prediction\PredictionController.class
++com\dlt\predictor\auth\Credentials.class
++com\dlt\predictor\lottery\Draw.class
++com\dlt\predictor\prediction\PredictionRequest.class
++com\dlt\predictor\prediction\FeatureEncoder.class
++com\dlt\predictor\lottery\dto\DrawPageResponse.class
++com\dlt\predictor\prediction\SimilarDraw.class
+diff --git "a/D:\\codeWorkSpace\\backend/target/maven-status/maven-compiler-plugin/compile/default-compile/inputFiles.lst" "b/D:\\codeWorkSpace\\backend/target/maven-status/maven-compiler-plugin/compile/default-compile/inputFiles.lst"
+new file mode 100644
+index 0000000..12ff8bc
+--- /dev/null
++++ "b/D:\\codeWorkSpace\\backend/target/maven-status/maven-compiler-plugin/compile/default-compile/inputFiles.lst"
+@@ -0,0 +1,20 @@
++D:\codeWorkSpace\backend\src\main\java\com\dlt\predictor\admin\AdminController.java
++D:\codeWorkSpace\backend\src\main\java\com\dlt\predictor\api\ApiExceptionHandler.java
++D:\codeWorkSpace\backend\src\main\java\com\dlt\predictor\api\ApiResponse.java
++D:\codeWorkSpace\backend\src\main\java\com\dlt\predictor\auth\AuthController.java
++D:\codeWorkSpace\backend\src\main\java\com\dlt\predictor\auth\AuthService.java
++D:\codeWorkSpace\backend\src\main\java\com\dlt\predictor\auth\UserAccount.java
++D:\codeWorkSpace\backend\src\main\java\com\dlt\predictor\config\SecurityConfig.java
++D:\codeWorkSpace\backend\src\main\java\com\dlt\predictor\DltPredictorApplication.java
++D:\codeWorkSpace\backend\src\main\java\com\dlt\predictor\lottery\DltNumbers.java
++D:\codeWorkSpace\backend\src\main\java\com\dlt\predictor\lottery\Draw.java
++D:\codeWorkSpace\backend\src\main\java\com\dlt\predictor\lottery\DrawStore.java
++D:\codeWorkSpace\backend\src\main\java\com\dlt\predictor\lottery\dto\DrawPageResponse.java
++D:\codeWorkSpace\backend\src\main\java\com\dlt\predictor\lottery\dto\DrawResponse.java
++D:\codeWorkSpace\backend\src\main\java\com\dlt\predictor\lottery\LotteryController.java
++D:\codeWorkSpace\backend\src\main\java\com\dlt\predictor\prediction\dto\PredictionResponse.java
++D:\codeWorkSpace\backend\src\main\java\com\dlt\predictor\prediction\FeatureEncoder.java
++D:\codeWorkSpace\backend\src\main\java\com\dlt\predictor\prediction\PredictionController.java
++D:\codeWorkSpace\backend\src\main\java\com\dlt\predictor\prediction\RecommendationEngine.java
++D:\codeWorkSpace\backend\src\main\java\com\dlt\predictor\prediction\RecommendationResult.java
++D:\codeWorkSpace\backend\src\main\java\com\dlt\predictor\prediction\SimilarDraw.java
+diff --git "a/D:\\codeWorkSpace\\backend/target/maven-status/maven-compiler-plugin/testCompile/default-testCompile/createdFiles.lst" "b/D:\\codeWorkSpace\\backend/target/maven-status/maven-compiler-plugin/testCompile/default-testCompile/createdFiles.lst"
+new file mode 100644
+index 0000000..aa730fb
+--- /dev/null
++++ "b/D:\\codeWorkSpace\\backend/target/maven-status/maven-compiler-plugin/testCompile/default-testCompile/createdFiles.lst"
+@@ -0,0 +1,3 @@
++com\dlt\predictor\CoreDomainTest.class
++com\dlt\predictor\lottery\dto\DrawResponseTest.class
++com\dlt\predictor\prediction\dto\PredictionResponseTest.class
+diff --git "a/D:\\codeWorkSpace\\backend/target/maven-status/maven-compiler-plugin/testCompile/default-testCompile/inputFiles.lst" "b/D:\\codeWorkSpace\\backend/target/maven-status/maven-compiler-plugin/testCompile/default-testCompile/inputFiles.lst"
+new file mode 100644
+index 0000000..e246fdc
+--- /dev/null
++++ "b/D:\\codeWorkSpace\\backend/target/maven-status/maven-compiler-plugin/testCompile/default-testCompile/inputFiles.lst"
+@@ -0,0 +1,3 @@
++D:\codeWorkSpace\backend\src\test\java\com\dlt\predictor\CoreDomainTest.java
++D:\codeWorkSpace\backend\src\test\java\com\dlt\predictor\lottery\dto\DrawResponseTest.java
++D:\codeWorkSpace\backend\src\test\java\com\dlt\predictor\prediction\dto\PredictionResponseTest.java
+diff --git "a/D:\\codeWorkSpace\\backend/target/surefire-reports/2026-08-12T17-01-19_385.dumpstream" "b/D:\\codeWorkSpace\\backend/target/surefire-reports/2026-08-12T17-01-19_385.dumpstream"
+new file mode 100644
+index 0000000..30bd2a4
+--- /dev/null
++++ "b/D:\\codeWorkSpace\\backend/target/surefire-reports/2026-08-12T17-01-19_385.dumpstream"
+@@ -0,0 +1,5 @@
++# Created at 2026-08-12T17:01:22.835
++Boot Manifest-JAR contains absolute paths in classpath 'D:\software\maven_repo\org\apache\maven\surefire\surefire-booter\3.5.3\surefire-booter-3.5.3.jar'
++Hint: <argLine>-Djdk.net.URLClassPath.disableClassPathURLCheck=true</argLine>
++'other' has different root
++
+diff --git "a/D:\\codeWorkSpace\\backend/target/surefire-reports/2026-08-12T17-08-12_106.dumpstream" "b/D:\\codeWorkSpace\\backend/target/surefire-reports/2026-08-12T17-08-12_106.dumpstream"
+new file mode 100644
+index 0000000..6ebab60
+--- /dev/null
++++ "b/D:\\codeWorkSpace\\backend/target/surefire-reports/2026-08-12T17-08-12_106.dumpstream"
+@@ -0,0 +1,5 @@
++# Created at 2026-08-12T17:08:12.487
++Boot Manifest-JAR contains absolute paths in classpath 'D:\software\maven_repo\org\apache\maven\surefire\surefire-booter\3.5.3\surefire-booter-3.5.3.jar'
++Hint: <argLine>-Djdk.net.URLClassPath.disableClassPathURLCheck=true</argLine>
++'other' has different root
++
+diff --git "a/D:\\codeWorkSpace\\backend/target/surefire-reports/2026-08-12T17-15-35_489.dumpstream" "b/D:\\codeWorkSpace\\backend/target/surefire-reports/2026-08-12T17-15-35_489.dumpstream"
+new file mode 100644
+index 0000000..5261f0b
+--- /dev/null
++++ "b/D:\\codeWorkSpace\\backend/target/surefire-reports/2026-08-12T17-15-35_489.dumpstream"
+@@ -0,0 +1,5 @@
++# Created at 2026-08-12T17:15:35.754
++Boot Manifest-JAR contains absolute paths in classpath 'D:\software\maven_repo\org\apache\maven\surefire\surefire-booter\3.5.3\surefire-booter-3.5.3.jar'
++Hint: <argLine>-Djdk.net.URLClassPath.disableClassPathURLCheck=true</argLine>
++'other' has different root
++
+diff --git "a/D:\\codeWorkSpace\\backend/target/surefire-reports/2026-08-12T17-17-18_243.dumpstream" "b/D:\\codeWorkSpace\\backend/target/surefire-reports/2026-08-12T17-17-18_243.dumpstream"
+new file mode 100644
+index 0000000..64a51c8
+--- /dev/null
++++ "b/D:\\codeWorkSpace\\backend/target/surefire-reports/2026-08-12T17-17-18_243.dumpstream"
+@@ -0,0 +1,5 @@
++# Created at 2026-08-12T17:17:18.691
++Boot Manifest-JAR contains absolute paths in classpath 'D:\software\maven_repo\org\apache\maven\surefire\surefire-booter\3.5.3\surefire-booter-3.5.3.jar'
++Hint: <argLine>-Djdk.net.URLClassPath.disableClassPathURLCheck=true</argLine>
++'other' has different root
++
+diff --git "a/D:\\codeWorkSpace\\backend/target/surefire-reports/2026-08-12T17-32-52_552.dumpstream" "b/D:\\codeWorkSpace\\backend/target/surefire-reports/2026-08-12T17-32-52_552.dumpstream"
+new file mode 100644
+index 0000000..1138b07
+--- /dev/null
++++ "b/D:\\codeWorkSpace\\backend/target/surefire-reports/2026-08-12T17-32-52_552.dumpstream"
+@@ -0,0 +1,5 @@
++# Created at 2026-08-12T17:33:00.919
++Boot Manifest-JAR contains absolute paths in classpath 'D:\software\maven_repo\org\apache\maven\surefire\surefire-booter\3.5.3\surefire-booter-3.5.3.jar'
++Hint: <argLine>-Djdk.net.URLClassPath.disableClassPathURLCheck=true</argLine>
++'other' has different root
++
+diff --git "a/D:\\codeWorkSpace\\backend/target/surefire-reports/2026-08-12T17-33-10_509.dumpstream" "b/D:\\codeWorkSpace\\backend/target/surefire-reports/2026-08-12T17-33-10_509.dumpstream"
+new file mode 100644
+index 0000000..aa8f313
+--- /dev/null
++++ "b/D:\\codeWorkSpace\\backend/target/surefire-reports/2026-08-12T17-33-10_509.dumpstream"
+@@ -0,0 +1,5 @@
++# Created at 2026-08-12T17:33:18.768
++Boot Manifest-JAR contains absolute paths in classpath 'D:\software\maven_repo\org\apache\maven\surefire\surefire-booter\3.5.3\surefire-booter-3.5.3.jar'
++Hint: <argLine>-Djdk.net.URLClassPath.disableClassPathURLCheck=true</argLine>
++'other' has different root
++
+diff --git "a/D:\\codeWorkSpace\\backend/target/surefire-reports/TEST-com.dlt.predictor.CoreDomainTest.xml" "b/D:\\codeWorkSpace\\backend/target/surefire-reports/TEST-com.dlt.predictor.CoreDomainTest.xml"
+new file mode 100644
+index 0000000..7348f0f
+--- /dev/null
++++ "b/D:\\codeWorkSpace\\backend/target/surefire-reports/TEST-com.dlt.predictor.CoreDomainTest.xml"
+@@ -0,0 +1,63 @@
++<?xml version="1.0" encoding="UTF-8"?>
++<testsuite xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="https://maven.apache.org/surefire/maven-surefire-plugin/xsd/surefire-test-report.xsd" version="3.0.2" name="com.dlt.predictor.CoreDomainTest" time="0.106" tests="2" errors="0" skipped="0" failures="0">
++  <properties>
++    <property name="java.specification.version" value="21"/>
++    <property name="sun.cpu.isalist" value="amd64"/>
++    <property name="sun.jnu.encoding" value="GBK"/>
++    <property name="java.class.path" value="D:\codeWorkSpace\backend\target\test-classes;D:\codeWorkSpace\backend\target\classes;D:\software\maven_repo\org\springframework\boot\spring-boot-starter-web\3.4.5\spring-boot-starter-web-3.4.5.jar;D:\software\maven_repo\org\springframework\boot\spring-boot-starter\3.4.5\spring-boot-starter-3.4.5.jar;D:\software\maven_repo\org\springframework\boot\spring-boot\3.4.5\spring-boot-3.4.5.jar;D:\software\maven_repo\org\springframework\boot\spring-boot-autoconfigure\3.4.5\spring-boot-autoconfigure-3.4.5.jar;D:\software\maven_repo\org\springframework\boot\spring-boot-starter-logging\3.4.5\spring-boot-starter-logging-3.4.5.jar;D:\software\maven_repo\ch\qos\logback\logback-classic\1.5.18\logback-classic-1.5.18.jar;D:\software\maven_repo\ch\qos\logback\logback-core\1.5.18\logback-core-1.5.18.jar;D:\software\maven_repo\org\apache\logging\log4j\log4j-to-slf4j\2.24.3\log4j-to-slf4j-2.24.3.jar;D:\software\maven_repo\org\apache\logging\log4j\log4j-api\2.24.3\log4j-api-2.24.3.jar;D:\software\maven_repo\org\slf4j\jul-to-slf4j\2.0.17\jul-to-slf4j-2.0.17.jar;D:\software\maven_repo\jakarta\annotation\jakarta.annotation-api\2.1.1\jakarta.annotation-api-2.1.1.jar;D:\software\maven_repo\org\yaml\snakeyaml\2.3\snakeyaml-2.3.jar;D:\software\maven_repo\org\springframework\boot\spring-boot-starter-json\3.4.5\spring-boot-starter-json-3.4.5.jar;D:\software\maven_repo\com\fasterxml\jackson\datatype\jackson-datatype-jdk8\2.18.3\jackson-datatype-jdk8-2.18.3.jar;D:\software\maven_repo\com\fasterxml\jackson\module\jackson-module-parameter-names\2.18.3\jackson-module-parameter-names-2.18.3.jar;D:\software\maven_repo\org\springframework\boot\spring-boot-starter-tomcat\3.4.5\spring-boot-starter-tomcat-3.4.5.jar;D:\software\maven_repo\org\apache\tomcat\embed\tomcat-embed-core\10.1.40\tomcat-embed-core-10.1.40.jar;D:\software\maven_repo\org\apache\tomcat\embed\tomcat-embed-websocket\10.1.40\tomcat-embed-websocket-10.1.40.jar;D:\software\maven_repo\org\springframework\spring-web\6.2.6\spring-web-6.2.6.jar;D:\software\maven_repo\org\springframework\spring-beans\6.2.6\spring-beans-6.2.6.jar;D:\software\maven_repo\io\micrometer\micrometer-observation\1.14.6\micrometer-observation-1.14.6.jar;D:\software\maven_repo\io\micrometer\micrometer-commons\1.14.6\micrometer-commons-1.14.6.jar;D:\software\maven_repo\org\springframework\spring-webmvc\6.2.6\spring-webmvc-6.2.6.jar;D:\software\maven_repo\org\springframework\spring-context\6.2.6\spring-context-6.2.6.jar;D:\software\maven_repo\org\springframework\spring-expression\6.2.6\spring-expression-6.2.6.jar;D:\software\maven_repo\org\springframework\boot\spring-boot-starter-validation\3.4.5\spring-boot-starter-validation-3.4.5.jar;D:\software\maven_repo\org\apache\tomcat\embed\tomcat-embed-el\10.1.40\tomcat-embed-el-10.1.40.jar;D:\software\maven_repo\org\hibernate\validator\hibernate-validator\8.0.2.Final\hibernate-validator-8.0.2.Final.jar;D:\software\maven_repo\jakarta\validation\jakarta.validation-api\3.0.2\jakarta.validation-api-3.0.2.jar;D:\software\maven_repo\org\jboss\logging\jboss-logging\3.6.1.Final\jboss-logging-3.6.1.Final.jar;D:\software\maven_repo\com\fasterxml\classmate\1.7.0\classmate-1.7.0.jar;D:\software\maven_repo\org\springframework\boot\spring-boot-starter-security\3.4.5\spring-boot-starter-security-3.4.5.jar;D:\software\maven_repo\org\springframework\spring-aop\6.2.6\spring-aop-6.2.6.jar;D:\software\maven_repo\org\springframework\security\spring-security-config\6.4.5\spring-security-config-6.4.5.jar;D:\software\maven_repo\org\springframework\security\spring-security-web\6.4.5\spring-security-web-6.4.5.jar;D:\software\maven_repo\org\springframework\boot\spring-boot-starter-data-jpa\3.4.5\spring-boot-starter-data-jpa-3.4.5.jar;D:\software\maven_repo\org\springframework\boot\spring-boot-starter-jdbc\3.4.5\spring-boot-starter-jdbc-3.4.5.jar;D:\software\maven_repo\com\zaxxer\HikariCP\5.1.0\HikariCP-5.1.0.jar;D:\software\maven_repo\org\springframework\spring-jdbc\6.2.6\spring-jdbc-6.2.6.jar;D:\software\maven_repo\org\hibernate\orm\hibernate-core\6.6.13.Final\hibernate-core-6.6.13.Final.jar;D:\software\maven_repo\jakarta\persistence\jakarta.persistence-api\3.1.0\jakarta.persistence-api-3.1.0.jar;D:\software\maven_repo\jakarta\transaction\jakarta.transaction-api\2.0.1\jakarta.transaction-api-2.0.1.jar;D:\software\maven_repo\org\hibernate\common\hibernate-commons-annotations\7.0.3.Final\hibernate-commons-annotations-7.0.3.Final.jar;D:\software\maven_repo\io\smallrye\jandex\3.2.0\jandex-3.2.0.jar;D:\software\maven_repo\net\bytebuddy\byte-buddy\1.15.11\byte-buddy-1.15.11.jar;D:\software\maven_repo\org\glassfish\jaxb\jaxb-runtime\4.0.5\jaxb-runtime-4.0.5.jar;D:\software\maven_repo\org\glassfish\jaxb\jaxb-core\4.0.5\jaxb-core-4.0.5.jar;D:\software\maven_repo\org\eclipse\angus\angus-activation\2.0.2\angus-activation-2.0.2.jar;D:\software\maven_repo\org\glassfish\jaxb\txw2\4.0.5\txw2-4.0.5.jar;D:\software\maven_repo\com\sun\istack\istack-commons-runtime\4.1.2\istack-commons-runtime-4.1.2.jar;D:\software\maven_repo\jakarta\inject\jakarta.inject-api\2.0.1\jakarta.inject-api-2.0.1.jar;D:\software\maven_repo\org\antlr\antlr4-runtime\4.13.0\antlr4-runtime-4.13.0.jar;D:\software\maven_repo\org\springframework\data\spring-data-jpa\3.4.5\spring-data-jpa-3.4.5.jar;D:\software\maven_repo\org\springframework\data\spring-data-commons\3.4.5\spring-data-commons-3.4.5.jar;D:\software\maven_repo\org\springframework\spring-orm\6.2.6\spring-orm-6.2.6.jar;D:\software\maven_repo\org\springframework\spring-tx\6.2.6\spring-tx-6.2.6.jar;D:\software\maven_repo\org\slf4j\slf4j-api\2.0.17\slf4j-api-2.0.17.jar;D:\software\maven_repo\org\springframework\spring-aspects\6.2.6\spring-aspects-6.2.6.jar;D:\software\maven_repo\org\aspectj\aspectjweaver\1.9.24\aspectjweaver-1.9.24.jar;D:\software\maven_repo\org\flywaydb\flyway-core\10.20.1\flyway-core-10.20.1.jar;D:\software\maven_repo\com\fasterxml\jackson\dataformat\jackson-dataformat-toml\2.18.3\jackson-dataformat-toml-2.18.3.jar;D:\software\maven_repo\com\fasterxml\jackson\core\jackson-core\2.18.3\jackson-core-2.18.3.jar;D:\software\maven_repo\com\fasterxml\jackson\datatype\jackson-datatype-jsr310\2.18.3\jackson-datatype-jsr310-2.18.3.jar;D:\software\maven_repo\com\fasterxml\jackson\core\jackson-annotations\2.18.3\jackson-annotations-2.18.3.jar;D:\software\maven_repo\org\flywaydb\flyway-database-postgresql\10.20.1\flyway-database-postgresql-10.20.1.jar;D:\software\maven_repo\org\postgresql\postgresql\42.7.5\postgresql-42.7.5.jar;D:\software\maven_repo\org\checkerframework\checker-qual\3.48.3\checker-qual-3.48.3.jar;D:\software\maven_repo\io\jsonwebtoken\jjwt-api\0.12.6\jjwt-api-0.12.6.jar;D:\software\maven_repo\io\jsonwebtoken\jjwt-impl\0.12.6\jjwt-impl-0.12.6.jar;D:\software\maven_repo\io\jsonwebtoken\jjwt-jackson\0.12.6\jjwt-jackson-0.12.6.jar;D:\software\maven_repo\com\fasterxml\jackson\core\jackson-databind\2.18.3\jackson-databind-2.18.3.jar;D:\software\maven_repo\org\springframework\boot\spring-boot-starter-test\3.4.5\spring-boot-starter-test-3.4.5.jar;D:\software\maven_repo\org\springframework\boot\spring-boot-test\3.4.5\spring-boot-test-3.4.5.jar;D:\software\maven_repo\org\springframework\boot\spring-boot-test-autoconfigure\3.4.5\spring-boot-test-autoconfigure-3.4.5.jar;D:\software\maven_repo\com\jayway\jsonpath\json-path\2.9.0\json-path-2.9.0.jar;D:\software\maven_repo\jakarta\xml\bind\jakarta.xml.bind-api\4.0.2\jakarta.xml.bind-api-4.0.2.jar;D:\software\maven_repo\jakarta\activation\jakarta.activation-api\2.1.3\jakarta.activation-api-2.1.3.jar;D:\software\maven_repo\net\minidev\json-smart\2.5.2\json-smart-2.5.2.jar;D:\software\maven_repo\net\minidev\accessors-smart\2.5.2\accessors-smart-2.5.2.jar;D:\software\maven_repo\org\ow2\asm\asm\9.7.1\asm-9.7.1.jar;D:\software\maven_repo\org\assertj\assertj-core\3.26.3\assertj-core-3.26.3.jar;D:\software\maven_repo\org\awaitility\awaitility\4.2.2\awaitility-4.2.2.jar;D:\software\maven_repo\org\hamcrest\hamcrest\2.2\hamcrest-2.2.jar;D:\software\maven_repo\org\junit\jupiter\junit-jupiter\5.11.4\junit-jupiter-5.11.4.jar;D:\software\maven_repo\org\junit\jupiter\junit-jupiter-api\5.11.4\junit-jupiter-api-5.11.4.jar;D:\software\maven_repo\org\opentest4j\opentest4j\1.3.0\opentest4j-1.3.0.jar;D:\software\maven_repo\org\junit\platform\junit-platform-commons\1.11.4\junit-platform-commons-1.11.4.jar;D:\software\maven_repo\org\apiguardian\apiguardian-api\1.1.2\apiguardian-api-1.1.2.jar;D:\software\maven_repo\org\junit\jupiter\junit-jupiter-params\5.11.4\junit-jupiter-params-5.11.4.jar;D:\software\maven_repo\org\junit\jupiter\junit-jupiter-engine\5.11.4\junit-jupiter-engine-5.11.4.jar;D:\software\maven_repo\org\junit\platform\junit-platform-engine\1.11.4\junit-platform-engine-1.11.4.jar;D:\software\maven_repo\org\mockito\mockito-core\5.14.2\mockito-core-5.14.2.jar;D:\software\maven_repo\net\bytebuddy\byte-buddy-agent\1.15.11\byte-buddy-agent-1.15.11.jar;D:\software\maven_repo\org\objenesis\objenesis\3.3\objenesis-3.3.jar;D:\software\maven_repo\org\mockito\mockito-junit-jupiter\5.14.2\mockito-junit-jupiter-5.14.2.jar;D:\software\maven_repo\org\skyscreamer\jsonassert\1.5.3\jsonassert-1.5.3.jar;D:\software\maven_repo\com\vaadin\external\google\android-json\0.0.20131108.vaadin1\android-json-0.0.20131108.vaadin1.jar;D:\software\maven_repo\org\springframework\spring-core\6.2.6\spring-core-6.2.6.jar;D:\software\maven_repo\org\springframework\spring-jcl\6.2.6\spring-jcl-6.2.6.jar;D:\software\maven_repo\org\springframework\spring-test\6.2.6\spring-test-6.2.6.jar;D:\software\maven_repo\org\xmlunit\xmlunit-core\2.10.0\xmlunit-core-2.10.0.jar;D:\software\maven_repo\org\springframework\security\spring-security-test\6.4.5\spring-security-test-6.4.5.jar;D:\software\maven_repo\org\springframework\security\spring-security-core\6.4.5\spring-security-core-6.4.5.jar;D:\software\maven_repo\org\springframework\security\spring-security-crypto\6.4.5\spring-security-crypto-6.4.5.jar;"/>
++    <property name="java.vm.vendor" value="Oracle Corporation"/>
++    <property name="sun.arch.data.model" value="64"/>
++    <property name="user.variant" value=""/>
++    <property name="java.vendor.url" value="https://java.oracle.com/"/>
++    <property name="user.timezone" value="Asia/Shanghai"/>
++    <property name="os.name" value="Windows 10"/>
++    <property name="java.vm.specification.version" value="21"/>
++    <property name="sun.java.launcher" value="SUN_STANDARD"/>
++    <property name="user.country" value="CN"/>
++    <property name="sun.boot.library.path" value="D:\software\java21\jdk-21.0.6\bin"/>
++    <property name="sun.java.command" value="C:\Users\PC\AppData\Local\Temp\surefire3087568088244435245\surefirebooter-20260812173318677_3.jar C:\Users\PC\AppData\Local\Temp\surefire3087568088244435245 2026-08-12T17-33-10_509-jvmRun1 surefire-20260812173318677_1tmp surefire_0-20260812173318677_2tmp"/>
++    <property name="jdk.debug" value="release"/>
++    <property name="surefire.test.class.path" value="D:\codeWorkSpace\backend\target\test-classes;D:\codeWorkSpace\backend\target\classes;D:\software\maven_repo\org\springframework\boot\spring-boot-starter-web\3.4.5\spring-boot-starter-web-3.4.5.jar;D:\software\maven_repo\org\springframework\boot\spring-boot-starter\3.4.5\spring-boot-starter-3.4.5.jar;D:\software\maven_repo\org\springframework\boot\spring-boot\3.4.5\spring-boot-3.4.5.jar;D:\software\maven_repo\org\springframework\boot\spring-boot-autoconfigure\3.4.5\spring-boot-autoconfigure-3.4.5.jar;D:\software\maven_repo\org\springframework\boot\spring-boot-starter-logging\3.4.5\spring-boot-starter-logging-3.4.5.jar;D:\software\maven_repo\ch\qos\logback\logback-classic\1.5.18\logback-classic-1.5.18.jar;D:\software\maven_repo\ch\qos\logback\logback-core\1.5.18\logback-core-1.5.18.jar;D:\software\maven_repo\org\apache\logging\log4j\log4j-to-slf4j\2.24.3\log4j-to-slf4j-2.24.3.jar;D:\software\maven_repo\org\apache\logging\log4j\log4j-api\2.24.3\log4j-api-2.24.3.jar;D:\software\maven_repo\org\slf4j\jul-to-slf4j\2.0.17\jul-to-slf4j-2.0.17.jar;D:\software\maven_repo\jakarta\annotation\jakarta.annotation-api\2.1.1\jakarta.annotation-api-2.1.1.jar;D:\software\maven_repo\org\yaml\snakeyaml\2.3\snakeyaml-2.3.jar;D:\software\maven_repo\org\springframework\boot\spring-boot-starter-json\3.4.5\spring-boot-starter-json-3.4.5.jar;D:\software\maven_repo\com\fasterxml\jackson\datatype\jackson-datatype-jdk8\2.18.3\jackson-datatype-jdk8-2.18.3.jar;D:\software\maven_repo\com\fasterxml\jackson\module\jackson-module-parameter-names\2.18.3\jackson-module-parameter-names-2.18.3.jar;D:\software\maven_repo\org\springframework\boot\spring-boot-starter-tomcat\3.4.5\spring-boot-starter-tomcat-3.4.5.jar;D:\software\maven_repo\org\apache\tomcat\embed\tomcat-embed-core\10.1.40\tomcat-embed-core-10.1.40.jar;D:\software\maven_repo\org\apache\tomcat\embed\tomcat-embed-websocket\10.1.40\tomcat-embed-websocket-10.1.40.jar;D:\software\maven_repo\org\springframework\spring-web\6.2.6\spring-web-6.2.6.jar;D:\software\maven_repo\org\springframework\spring-beans\6.2.6\spring-beans-6.2.6.jar;D:\software\maven_repo\io\micrometer\micrometer-observation\1.14.6\micrometer-observation-1.14.6.jar;D:\software\maven_repo\io\micrometer\micrometer-commons\1.14.6\micrometer-commons-1.14.6.jar;D:\software\maven_repo\org\springframework\spring-webmvc\6.2.6\spring-webmvc-6.2.6.jar;D:\software\maven_repo\org\springframework\spring-context\6.2.6\spring-context-6.2.6.jar;D:\software\maven_repo\org\springframework\spring-expression\6.2.6\spring-expression-6.2.6.jar;D:\software\maven_repo\org\springframework\boot\spring-boot-starter-validation\3.4.5\spring-boot-starter-validation-3.4.5.jar;D:\software\maven_repo\org\apache\tomcat\embed\tomcat-embed-el\10.1.40\tomcat-embed-el-10.1.40.jar;D:\software\maven_repo\org\hibernate\validator\hibernate-validator\8.0.2.Final\hibernate-validator-8.0.2.Final.jar;D:\software\maven_repo\jakarta\validation\jakarta.validation-api\3.0.2\jakarta.validation-api-3.0.2.jar;D:\software\maven_repo\org\jboss\logging\jboss-logging\3.6.1.Final\jboss-logging-3.6.1.Final.jar;D:\software\maven_repo\com\fasterxml\classmate\1.7.0\classmate-1.7.0.jar;D:\software\maven_repo\org\springframework\boot\spring-boot-starter-security\3.4.5\spring-boot-starter-security-3.4.5.jar;D:\software\maven_repo\org\springframework\spring-aop\6.2.6\spring-aop-6.2.6.jar;D:\software\maven_repo\org\springframework\security\spring-security-config\6.4.5\spring-security-config-6.4.5.jar;D:\software\maven_repo\org\springframework\security\spring-security-web\6.4.5\spring-security-web-6.4.5.jar;D:\software\maven_repo\org\springframework\boot\spring-boot-starter-data-jpa\3.4.5\spring-boot-starter-data-jpa-3.4.5.jar;D:\software\maven_repo\org\springframework\boot\spring-boot-starter-jdbc\3.4.5\spring-boot-starter-jdbc-3.4.5.jar;D:\software\maven_repo\com\zaxxer\HikariCP\5.1.0\HikariCP-5.1.0.jar;D:\software\maven_repo\org\springframework\spring-jdbc\6.2.6\spring-jdbc-6.2.6.jar;D:\software\maven_repo\org\hibernate\orm\hibernate-core\6.6.13.Final\hibernate-core-6.6.13.Final.jar;D:\software\maven_repo\jakarta\persistence\jakarta.persistence-api\3.1.0\jakarta.persistence-api-3.1.0.jar;D:\software\maven_repo\jakarta\transaction\jakarta.transaction-api\2.0.1\jakarta.transaction-api-2.0.1.jar;D:\software\maven_repo\org\hibernate\common\hibernate-commons-annotations\7.0.3.Final\hibernate-commons-annotations-7.0.3.Final.jar;D:\software\maven_repo\io\smallrye\jandex\3.2.0\jandex-3.2.0.jar;D:\software\maven_repo\net\bytebuddy\byte-buddy\1.15.11\byte-buddy-1.15.11.jar;D:\software\maven_repo\org\glassfish\jaxb\jaxb-runtime\4.0.5\jaxb-runtime-4.0.5.jar;D:\software\maven_repo\org\glassfish\jaxb\jaxb-core\4.0.5\jaxb-core-4.0.5.jar;D:\software\maven_repo\org\eclipse\angus\angus-activation\2.0.2\angus-activation-2.0.2.jar;D:\software\maven_repo\org\glassfish\jaxb\txw2\4.0.5\txw2-4.0.5.jar;D:\software\maven_repo\com\sun\istack\istack-commons-runtime\4.1.2\istack-commons-runtime-4.1.2.jar;D:\software\maven_repo\jakarta\inject\jakarta.inject-api\2.0.1\jakarta.inject-api-2.0.1.jar;D:\software\maven_repo\org\antlr\antlr4-runtime\4.13.0\antlr4-runtime-4.13.0.jar;D:\software\maven_repo\org\springframework\data\spring-data-jpa\3.4.5\spring-data-jpa-3.4.5.jar;D:\software\maven_repo\org\springframework\data\spring-data-commons\3.4.5\spring-data-commons-3.4.5.jar;D:\software\maven_repo\org\springframework\spring-orm\6.2.6\spring-orm-6.2.6.jar;D:\software\maven_repo\org\springframework\spring-tx\6.2.6\spring-tx-6.2.6.jar;D:\software\maven_repo\org\slf4j\slf4j-api\2.0.17\slf4j-api-2.0.17.jar;D:\software\maven_repo\org\springframework\spring-aspects\6.2.6\spring-aspects-6.2.6.jar;D:\software\maven_repo\org\aspectj\aspectjweaver\1.9.24\aspectjweaver-1.9.24.jar;D:\software\maven_repo\org\flywaydb\flyway-core\10.20.1\flyway-core-10.20.1.jar;D:\software\maven_repo\com\fasterxml\jackson\dataformat\jackson-dataformat-toml\2.18.3\jackson-dataformat-toml-2.18.3.jar;D:\software\maven_repo\com\fasterxml\jackson\core\jackson-core\2.18.3\jackson-core-2.18.3.jar;D:\software\maven_repo\com\fasterxml\jackson\datatype\jackson-datatype-jsr310\2.18.3\jackson-datatype-jsr310-2.18.3.jar;D:\software\maven_repo\com\fasterxml\jackson\core\jackson-annotations\2.18.3\jackson-annotations-2.18.3.jar;D:\software\maven_repo\org\flywaydb\flyway-database-postgresql\10.20.1\flyway-database-postgresql-10.20.1.jar;D:\software\maven_repo\org\postgresql\postgresql\42.7.5\postgresql-42.7.5.jar;D:\software\maven_repo\org\checkerframework\checker-qual\3.48.3\checker-qual-3.48.3.jar;D:\software\maven_repo\io\jsonwebtoken\jjwt-api\0.12.6\jjwt-api-0.12.6.jar;D:\software\maven_repo\io\jsonwebtoken\jjwt-impl\0.12.6\jjwt-impl-0.12.6.jar;D:\software\maven_repo\io\jsonwebtoken\jjwt-jackson\0.12.6\jjwt-jackson-0.12.6.jar;D:\software\maven_repo\com\fasterxml\jackson\core\jackson-databind\2.18.3\jackson-databind-2.18.3.jar;D:\software\maven_repo\org\springframework\boot\spring-boot-starter-test\3.4.5\spring-boot-starter-test-3.4.5.jar;D:\software\maven_repo\org\springframework\boot\spring-boot-test\3.4.5\spring-boot-test-3.4.5.jar;D:\software\maven_repo\org\springframework\boot\spring-boot-test-autoconfigure\3.4.5\spring-boot-test-autoconfigure-3.4.5.jar;D:\software\maven_repo\com\jayway\jsonpath\json-path\2.9.0\json-path-2.9.0.jar;D:\software\maven_repo\jakarta\xml\bind\jakarta.xml.bind-api\4.0.2\jakarta.xml.bind-api-4.0.2.jar;D:\software\maven_repo\jakarta\activation\jakarta.activation-api\2.1.3\jakarta.activation-api-2.1.3.jar;D:\software\maven_repo\net\minidev\json-smart\2.5.2\json-smart-2.5.2.jar;D:\software\maven_repo\net\minidev\accessors-smart\2.5.2\accessors-smart-2.5.2.jar;D:\software\maven_repo\org\ow2\asm\asm\9.7.1\asm-9.7.1.jar;D:\software\maven_repo\org\assertj\assertj-core\3.26.3\assertj-core-3.26.3.jar;D:\software\maven_repo\org\awaitility\awaitility\4.2.2\awaitility-4.2.2.jar;D:\software\maven_repo\org\hamcrest\hamcrest\2.2\hamcrest-2.2.jar;D:\software\maven_repo\org\junit\jupiter\junit-jupiter\5.11.4\junit-jupiter-5.11.4.jar;D:\software\maven_repo\org\junit\jupiter\junit-jupiter-api\5.11.4\junit-jupiter-api-5.11.4.jar;D:\software\maven_repo\org\opentest4j\opentest4j\1.3.0\opentest4j-1.3.0.jar;D:\software\maven_repo\org\junit\platform\junit-platform-commons\1.11.4\junit-platform-commons-1.11.4.jar;D:\software\maven_repo\org\apiguardian\apiguardian-api\1.1.2\apiguardian-api-1.1.2.jar;D:\software\maven_repo\org\junit\jupiter\junit-jupiter-params\5.11.4\junit-jupiter-params-5.11.4.jar;D:\software\maven_repo\org\junit\jupiter\junit-jupiter-engine\5.11.4\junit-jupiter-engine-5.11.4.jar;D:\software\maven_repo\org\junit\platform\junit-platform-engine\1.11.4\junit-platform-engine-1.11.4.jar;D:\software\maven_repo\org\mockito\mockito-core\5.14.2\mockito-core-5.14.2.jar;D:\software\maven_repo\net\bytebuddy\byte-buddy-agent\1.15.11\byte-buddy-agent-1.15.11.jar;D:\software\maven_repo\org\objenesis\objenesis\3.3\objenesis-3.3.jar;D:\software\maven_repo\org\mockito\mockito-junit-jupiter\5.14.2\mockito-junit-jupiter-5.14.2.jar;D:\software\maven_repo\org\skyscreamer\jsonassert\1.5.3\jsonassert-1.5.3.jar;D:\software\maven_repo\com\vaadin\external\google\android-json\0.0.20131108.vaadin1\android-json-0.0.20131108.vaadin1.jar;D:\software\maven_repo\org\springframework\spring-core\6.2.6\spring-core-6.2.6.jar;D:\software\maven_repo\org\springframework\spring-jcl\6.2.6\spring-jcl-6.2.6.jar;D:\software\maven_repo\org\springframework\spring-test\6.2.6\spring-test-6.2.6.jar;D:\software\maven_repo\org\xmlunit\xmlunit-core\2.10.0\xmlunit-core-2.10.0.jar;D:\software\maven_repo\org\springframework\security\spring-security-test\6.4.5\spring-security-test-6.4.5.jar;D:\software\maven_repo\org\springframework\security\spring-security-core\6.4.5\spring-security-core-6.4.5.jar;D:\software\maven_repo\org\springframework\security\spring-security-crypto\6.4.5\spring-security-crypto-6.4.5.jar;"/>
++    <property name="sun.cpu.endian" value="little"/>
++    <property name="user.home" value="C:\"/>
++    <property name="user.language" value="zh"/>
++    <property name="java.specification.vendor" value="Oracle Corporation"/>
++    <property name="java.version.date" value="2025-01-21"/>
++    <property name="java.home" value="D:\software\java21\jdk-21.0.6"/>
++    <property name="file.separator" value="\"/>
++    <property name="basedir" value="D:\codeWorkSpace\backend"/>
++    <property name="java.vm.compressedOopsMode" value="Zero based"/>
++    <property name="line.separator" value="&#10;"/>
++    <property name="java.vm.specification.vendor" value="Oracle Corporation"/>
++    <property name="java.specification.name" value="Java Platform API Specification"/>
++    <property name="surefire.real.class.path" value="C:\Users\PC\AppData\Local\Temp\surefire3087568088244435245\surefirebooter-20260812173318677_3.jar"/>
++    <property name="user.script" value=""/>
++    <property name="sun.management.compiler" value="HotSpot 64-Bit Tiered Compilers"/>
++    <property name="java.runtime.version" value="21.0.6+8-LTS-188"/>
++    <property name="user.name" value="PC"/>
++    <property name="stdout.encoding" value="GBK"/>
++    <property name="path.separator" value=";"/>
++    <property name="os.version" value="10.0"/>
++    <property name="java.runtime.name" value="Java(TM) SE Runtime Environment"/>
++    <property name="file.encoding" value="UTF-8"/>
++    <property name="java.vm.name" value="Java HotSpot(TM) 64-Bit Server VM"/>
++    <property name="localRepository" value="D:\software\maven_repo"/>
++    <property name="java.vendor.url.bug" value="https://bugreport.java.com/bugreport/"/>
++    <property name="java.io.tmpdir" value="C:\Users\PC\AppData\Local\Temp\"/>
++    <property name="java.version" value="21.0.6"/>
++    <property name="user.dir" value="D:\codeWorkSpace\backend"/>
++    <property name="os.arch" value="amd64"/>
++    <property name="java.vm.specification.name" value="Java Virtual Machine Specification"/>
++    <property name="sun.os.patch.level" value=""/>
++    <property name="native.encoding" value="GBK"/>
++    <property name="java.library.path" value="D:\software\java21\jdk-21.0.6\bin;C:\Windows\Sun\Java\bin;C:\Windows\system32;C:\Windows;C:\Users\PC\.codex\tmp\arg0\codex-arg0psFdrJ;C:\Users\PC\.cache\codex-runtimes\codex-primary-runtime\dependencies\bin\override;C:\Python314\Scripts\;C:\Python314\;C:\Program Files (x86)\Common Files\Oracle\Java\java8path;C:\Program Files (x86)\Common Files\Oracle\Java\javapath;C:\Python313\Scripts\;C:\Python313\;C:\Windows\system32;C:\Windows;C:\Windows\System32\Wbem;C:\Windows\System32\WindowsPowerShell\v1.0\;C:\Windows\System32\OpenSSH\;D:\software\java21\jdk-21.0.6\bin;D:\software\java21\jdk-21.0.6\jre\bin;D:\software\maven\apache-maven-3.9.6\bin;D:\software\Git\Git\cmd;C:\TDengine;D:\k8s;C:\ProgramData\chocolatey\bin;D:\go\bin;D:\go\\bin;D:\goWorkSpace\bin;C:\Program Files\Docker\Docker\resources\bin;D:\software\Node\;C:\Program Files\MySQL\MySQL Shell 8.0\bin\;C:\Users\PC\AppData\Local\Microsoft\WindowsApps;D:\software\VSCode\Microsoft VS Code\bin;C:\Users\PC\go\bin;D:\software\GoLand\GoLand 2025.1.1\bin;D:\software\datagrip\DataGrip 2025.2.4\bin;D:\pycharm\PyCharm 2025.3.3\bin;C:\Users\PC\AppData\Roaming\npm;C:\Users\PC\.cache\codex-runtimes\codex-primary-runtime\dependencies\bin\fallback;C:\Users\PC\.cache\codex-runtimes\codex-primary-runtime\dependencies\native\git\cmd;C:\Users\PC\AppData\Local\OpenAI\Codex\bin\ed3ef5e423c11bbd;C:\Program Files\WindowsApps\OpenAI.Codex_26.803.8161.0_x64__2p2nqsd0c76g0\app\resources;."/>
++    <property name="java.vm.info" value="mixed mode, sharing"/>
++    <property name="stderr.encoding" value="GBK"/>
++    <property name="java.vendor" value="Oracle Corporation"/>
++    <property name="java.vm.version" value="21.0.6+8-LTS-188"/>
++    <property name="sun.io.unicode.encoding" value="UnicodeLittle"/>
++    <property name="java.class.version" value="65.0"/>
++  </properties>
++  <testcase name="validates_sorts_and_encodes_dlt_numbers" classname="com.dlt.predictor.CoreDomainTest" time="0.045"/>
++  <testcase name="weights_similar_draws_into_reference_numbers" classname="com.dlt.predictor.CoreDomainTest" time="0.022"/>
++</testsuite>
+\ No newline at end of file
+diff --git "a/D:\\codeWorkSpace\\backend/target/surefire-reports/TEST-com.dlt.predictor.lottery.dto.DrawResponseTest.xml" "b/D:\\codeWorkSpace\\backend/target/surefire-reports/TEST-com.dlt.predictor.lottery.dto.DrawResponseTest.xml"
+new file mode 100644
+index 0000000..7e229f0
+--- /dev/null
++++ "b/D:\\codeWorkSpace\\backend/target/surefire-reports/TEST-com.dlt.predictor.lottery.dto.DrawResponseTest.xml"
+@@ -0,0 +1,62 @@
++<?xml version="1.0" encoding="UTF-8"?>
++<testsuite xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="https://maven.apache.org/surefire/maven-surefire-plugin/xsd/surefire-test-report.xsd" version="3.0.2" name="com.dlt.predictor.lottery.dto.DrawResponseTest" time="0.036" tests="1" errors="0" skipped="0" failures="0">
++  <properties>
++    <property name="java.specification.version" value="21"/>
++    <property name="sun.cpu.isalist" value="amd64"/>
++    <property name="sun.jnu.encoding" value="GBK"/>
++    <property name="java.class.path" value="D:\codeWorkSpace\backend\target\test-classes;D:\codeWorkSpace\backend\target\classes;D:\software\maven_repo\org\springframework\boot\spring-boot-starter-web\3.4.5\spring-boot-starter-web-3.4.5.jar;D:\software\maven_repo\org\springframework\boot\spring-boot-starter\3.4.5\spring-boot-starter-3.4.5.jar;D:\software\maven_repo\org\springframework\boot\spring-boot\3.4.5\spring-boot-3.4.5.jar;D:\software\maven_repo\org\springframework\boot\spring-boot-autoconfigure\3.4.5\spring-boot-autoconfigure-3.4.5.jar;D:\software\maven_repo\org\springframework\boot\spring-boot-starter-logging\3.4.5\spring-boot-starter-logging-3.4.5.jar;D:\software\maven_repo\ch\qos\logback\logback-classic\1.5.18\logback-classic-1.5.18.jar;D:\software\maven_repo\ch\qos\logback\logback-core\1.5.18\logback-core-1.5.18.jar;D:\software\maven_repo\org\apache\logging\log4j\log4j-to-slf4j\2.24.3\log4j-to-slf4j-2.24.3.jar;D:\software\maven_repo\org\apache\logging\log4j\log4j-api\2.24.3\log4j-api-2.24.3.jar;D:\software\maven_repo\org\slf4j\jul-to-slf4j\2.0.17\jul-to-slf4j-2.0.17.jar;D:\software\maven_repo\jakarta\annotation\jakarta.annotation-api\2.1.1\jakarta.annotation-api-2.1.1.jar;D:\software\maven_repo\org\yaml\snakeyaml\2.3\snakeyaml-2.3.jar;D:\software\maven_repo\org\springframework\boot\spring-boot-starter-json\3.4.5\spring-boot-starter-json-3.4.5.jar;D:\software\maven_repo\com\fasterxml\jackson\datatype\jackson-datatype-jdk8\2.18.3\jackson-datatype-jdk8-2.18.3.jar;D:\software\maven_repo\com\fasterxml\jackson\module\jackson-module-parameter-names\2.18.3\jackson-module-parameter-names-2.18.3.jar;D:\software\maven_repo\org\springframework\boot\spring-boot-starter-tomcat\3.4.5\spring-boot-starter-tomcat-3.4.5.jar;D:\software\maven_repo\org\apache\tomcat\embed\tomcat-embed-core\10.1.40\tomcat-embed-core-10.1.40.jar;D:\software\maven_repo\org\apache\tomcat\embed\tomcat-embed-websocket\10.1.40\tomcat-embed-websocket-10.1.40.jar;D:\software\maven_repo\org\springframework\spring-web\6.2.6\spring-web-6.2.6.jar;D:\software\maven_repo\org\springframework\spring-beans\6.2.6\spring-beans-6.2.6.jar;D:\software\maven_repo\io\micrometer\micrometer-observation\1.14.6\micrometer-observation-1.14.6.jar;D:\software\maven_repo\io\micrometer\micrometer-commons\1.14.6\micrometer-commons-1.14.6.jar;D:\software\maven_repo\org\springframework\spring-webmvc\6.2.6\spring-webmvc-6.2.6.jar;D:\software\maven_repo\org\springframework\spring-context\6.2.6\spring-context-6.2.6.jar;D:\software\maven_repo\org\springframework\spring-expression\6.2.6\spring-expression-6.2.6.jar;D:\software\maven_repo\org\springframework\boot\spring-boot-starter-validation\3.4.5\spring-boot-starter-validation-3.4.5.jar;D:\software\maven_repo\org\apache\tomcat\embed\tomcat-embed-el\10.1.40\tomcat-embed-el-10.1.40.jar;D:\software\maven_repo\org\hibernate\validator\hibernate-validator\8.0.2.Final\hibernate-validator-8.0.2.Final.jar;D:\software\maven_repo\jakarta\validation\jakarta.validation-api\3.0.2\jakarta.validation-api-3.0.2.jar;D:\software\maven_repo\org\jboss\logging\jboss-logging\3.6.1.Final\jboss-logging-3.6.1.Final.jar;D:\software\maven_repo\com\fasterxml\classmate\1.7.0\classmate-1.7.0.jar;D:\software\maven_repo\org\springframework\boot\spring-boot-starter-security\3.4.5\spring-boot-starter-security-3.4.5.jar;D:\software\maven_repo\org\springframework\spring-aop\6.2.6\spring-aop-6.2.6.jar;D:\software\maven_repo\org\springframework\security\spring-security-config\6.4.5\spring-security-config-6.4.5.jar;D:\software\maven_repo\org\springframework\security\spring-security-web\6.4.5\spring-security-web-6.4.5.jar;D:\software\maven_repo\org\springframework\boot\spring-boot-starter-data-jpa\3.4.5\spring-boot-starter-data-jpa-3.4.5.jar;D:\software\maven_repo\org\springframework\boot\spring-boot-starter-jdbc\3.4.5\spring-boot-starter-jdbc-3.4.5.jar;D:\software\maven_repo\com\zaxxer\HikariCP\5.1.0\HikariCP-5.1.0.jar;D:\software\maven_repo\org\springframework\spring-jdbc\6.2.6\spring-jdbc-6.2.6.jar;D:\software\maven_repo\org\hibernate\orm\hibernate-core\6.6.13.Final\hibernate-core-6.6.13.Final.jar;D:\software\maven_repo\jakarta\persistence\jakarta.persistence-api\3.1.0\jakarta.persistence-api-3.1.0.jar;D:\software\maven_repo\jakarta\transaction\jakarta.transaction-api\2.0.1\jakarta.transaction-api-2.0.1.jar;D:\software\maven_repo\org\hibernate\common\hibernate-commons-annotations\7.0.3.Final\hibernate-commons-annotations-7.0.3.Final.jar;D:\software\maven_repo\io\smallrye\jandex\3.2.0\jandex-3.2.0.jar;D:\software\maven_repo\net\bytebuddy\byte-buddy\1.15.11\byte-buddy-1.15.11.jar;D:\software\maven_repo\org\glassfish\jaxb\jaxb-runtime\4.0.5\jaxb-runtime-4.0.5.jar;D:\software\maven_repo\org\glassfish\jaxb\jaxb-core\4.0.5\jaxb-core-4.0.5.jar;D:\software\maven_repo\org\eclipse\angus\angus-activation\2.0.2\angus-activation-2.0.2.jar;D:\software\maven_repo\org\glassfish\jaxb\txw2\4.0.5\txw2-4.0.5.jar;D:\software\maven_repo\com\sun\istack\istack-commons-runtime\4.1.2\istack-commons-runtime-4.1.2.jar;D:\software\maven_repo\jakarta\inject\jakarta.inject-api\2.0.1\jakarta.inject-api-2.0.1.jar;D:\software\maven_repo\org\antlr\antlr4-runtime\4.13.0\antlr4-runtime-4.13.0.jar;D:\software\maven_repo\org\springframework\data\spring-data-jpa\3.4.5\spring-data-jpa-3.4.5.jar;D:\software\maven_repo\org\springframework\data\spring-data-commons\3.4.5\spring-data-commons-3.4.5.jar;D:\software\maven_repo\org\springframework\spring-orm\6.2.6\spring-orm-6.2.6.jar;D:\software\maven_repo\org\springframework\spring-tx\6.2.6\spring-tx-6.2.6.jar;D:\software\maven_repo\org\slf4j\slf4j-api\2.0.17\slf4j-api-2.0.17.jar;D:\software\maven_repo\org\springframework\spring-aspects\6.2.6\spring-aspects-6.2.6.jar;D:\software\maven_repo\org\aspectj\aspectjweaver\1.9.24\aspectjweaver-1.9.24.jar;D:\software\maven_repo\org\flywaydb\flyway-core\10.20.1\flyway-core-10.20.1.jar;D:\software\maven_repo\com\fasterxml\jackson\dataformat\jackson-dataformat-toml\2.18.3\jackson-dataformat-toml-2.18.3.jar;D:\software\maven_repo\com\fasterxml\jackson\core\jackson-core\2.18.3\jackson-core-2.18.3.jar;D:\software\maven_repo\com\fasterxml\jackson\datatype\jackson-datatype-jsr310\2.18.3\jackson-datatype-jsr310-2.18.3.jar;D:\software\maven_repo\com\fasterxml\jackson\core\jackson-annotations\2.18.3\jackson-annotations-2.18.3.jar;D:\software\maven_repo\org\flywaydb\flyway-database-postgresql\10.20.1\flyway-database-postgresql-10.20.1.jar;D:\software\maven_repo\org\postgresql\postgresql\42.7.5\postgresql-42.7.5.jar;D:\software\maven_repo\org\checkerframework\checker-qual\3.48.3\checker-qual-3.48.3.jar;D:\software\maven_repo\io\jsonwebtoken\jjwt-api\0.12.6\jjwt-api-0.12.6.jar;D:\software\maven_repo\io\jsonwebtoken\jjwt-impl\0.12.6\jjwt-impl-0.12.6.jar;D:\software\maven_repo\io\jsonwebtoken\jjwt-jackson\0.12.6\jjwt-jackson-0.12.6.jar;D:\software\maven_repo\com\fasterxml\jackson\core\jackson-databind\2.18.3\jackson-databind-2.18.3.jar;D:\software\maven_repo\org\springframework\boot\spring-boot-starter-test\3.4.5\spring-boot-starter-test-3.4.5.jar;D:\software\maven_repo\org\springframework\boot\spring-boot-test\3.4.5\spring-boot-test-3.4.5.jar;D:\software\maven_repo\org\springframework\boot\spring-boot-test-autoconfigure\3.4.5\spring-boot-test-autoconfigure-3.4.5.jar;D:\software\maven_repo\com\jayway\jsonpath\json-path\2.9.0\json-path-2.9.0.jar;D:\software\maven_repo\jakarta\xml\bind\jakarta.xml.bind-api\4.0.2\jakarta.xml.bind-api-4.0.2.jar;D:\software\maven_repo\jakarta\activation\jakarta.activation-api\2.1.3\jakarta.activation-api-2.1.3.jar;D:\software\maven_repo\net\minidev\json-smart\2.5.2\json-smart-2.5.2.jar;D:\software\maven_repo\net\minidev\accessors-smart\2.5.2\accessors-smart-2.5.2.jar;D:\software\maven_repo\org\ow2\asm\asm\9.7.1\asm-9.7.1.jar;D:\software\maven_repo\org\assertj\assertj-core\3.26.3\assertj-core-3.26.3.jar;D:\software\maven_repo\org\awaitility\awaitility\4.2.2\awaitility-4.2.2.jar;D:\software\maven_repo\org\hamcrest\hamcrest\2.2\hamcrest-2.2.jar;D:\software\maven_repo\org\junit\jupiter\junit-jupiter\5.11.4\junit-jupiter-5.11.4.jar;D:\software\maven_repo\org\junit\jupiter\junit-jupiter-api\5.11.4\junit-jupiter-api-5.11.4.jar;D:\software\maven_repo\org\opentest4j\opentest4j\1.3.0\opentest4j-1.3.0.jar;D:\software\maven_repo\org\junit\platform\junit-platform-commons\1.11.4\junit-platform-commons-1.11.4.jar;D:\software\maven_repo\org\apiguardian\apiguardian-api\1.1.2\apiguardian-api-1.1.2.jar;D:\software\maven_repo\org\junit\jupiter\junit-jupiter-params\5.11.4\junit-jupiter-params-5.11.4.jar;D:\software\maven_repo\org\junit\jupiter\junit-jupiter-engine\5.11.4\junit-jupiter-engine-5.11.4.jar;D:\software\maven_repo\org\junit\platform\junit-platform-engine\1.11.4\junit-platform-engine-1.11.4.jar;D:\software\maven_repo\org\mockito\mockito-core\5.14.2\mockito-core-5.14.2.jar;D:\software\maven_repo\net\bytebuddy\byte-buddy-agent\1.15.11\byte-buddy-agent-1.15.11.jar;D:\software\maven_repo\org\objenesis\objenesis\3.3\objenesis-3.3.jar;D:\software\maven_repo\org\mockito\mockito-junit-jupiter\5.14.2\mockito-junit-jupiter-5.14.2.jar;D:\software\maven_repo\org\skyscreamer\jsonassert\1.5.3\jsonassert-1.5.3.jar;D:\software\maven_repo\com\vaadin\external\google\android-json\0.0.20131108.vaadin1\android-json-0.0.20131108.vaadin1.jar;D:\software\maven_repo\org\springframework\spring-core\6.2.6\spring-core-6.2.6.jar;D:\software\maven_repo\org\springframework\spring-jcl\6.2.6\spring-jcl-6.2.6.jar;D:\software\maven_repo\org\springframework\spring-test\6.2.6\spring-test-6.2.6.jar;D:\software\maven_repo\org\xmlunit\xmlunit-core\2.10.0\xmlunit-core-2.10.0.jar;D:\software\maven_repo\org\springframework\security\spring-security-test\6.4.5\spring-security-test-6.4.5.jar;D:\software\maven_repo\org\springframework\security\spring-security-core\6.4.5\spring-security-core-6.4.5.jar;D:\software\maven_repo\org\springframework\security\spring-security-crypto\6.4.5\spring-security-crypto-6.4.5.jar;"/>
++    <property name="java.vm.vendor" value="Oracle Corporation"/>
++    <property name="sun.arch.data.model" value="64"/>
++    <property name="user.variant" value=""/>
++    <property name="java.vendor.url" value="https://java.oracle.com/"/>
++    <property name="user.timezone" value="Asia/Shanghai"/>
++    <property name="os.name" value="Windows 10"/>
++    <property name="java.vm.specification.version" value="21"/>
++    <property name="sun.java.launcher" value="SUN_STANDARD"/>
++    <property name="user.country" value="CN"/>
++    <property name="sun.boot.library.path" value="D:\software\java21\jdk-21.0.6\bin"/>
++    <property name="sun.java.command" value="C:\Users\PC\AppData\Local\Temp\surefire3087568088244435245\surefirebooter-20260812173318677_3.jar C:\Users\PC\AppData\Local\Temp\surefire3087568088244435245 2026-08-12T17-33-10_509-jvmRun1 surefire-20260812173318677_1tmp surefire_0-20260812173318677_2tmp"/>
++    <property name="jdk.debug" value="release"/>
++    <property name="surefire.test.class.path" value="D:\codeWorkSpace\backend\target\test-classes;D:\codeWorkSpace\backend\target\classes;D:\software\maven_repo\org\springframework\boot\spring-boot-starter-web\3.4.5\spring-boot-starter-web-3.4.5.jar;D:\software\maven_repo\org\springframework\boot\spring-boot-starter\3.4.5\spring-boot-starter-3.4.5.jar;D:\software\maven_repo\org\springframework\boot\spring-boot\3.4.5\spring-boot-3.4.5.jar;D:\software\maven_repo\org\springframework\boot\spring-boot-autoconfigure\3.4.5\spring-boot-autoconfigure-3.4.5.jar;D:\software\maven_repo\org\springframework\boot\spring-boot-starter-logging\3.4.5\spring-boot-starter-logging-3.4.5.jar;D:\software\maven_repo\ch\qos\logback\logback-classic\1.5.18\logback-classic-1.5.18.jar;D:\software\maven_repo\ch\qos\logback\logback-core\1.5.18\logback-core-1.5.18.jar;D:\software\maven_repo\org\apache\logging\log4j\log4j-to-slf4j\2.24.3\log4j-to-slf4j-2.24.3.jar;D:\software\maven_repo\org\apache\logging\log4j\log4j-api\2.24.3\log4j-api-2.24.3.jar;D:\software\maven_repo\org\slf4j\jul-to-slf4j\2.0.17\jul-to-slf4j-2.0.17.jar;D:\software\maven_repo\jakarta\annotation\jakarta.annotation-api\2.1.1\jakarta.annotation-api-2.1.1.jar;D:\software\maven_repo\org\yaml\snakeyaml\2.3\snakeyaml-2.3.jar;D:\software\maven_repo\org\springframework\boot\spring-boot-starter-json\3.4.5\spring-boot-starter-json-3.4.5.jar;D:\software\maven_repo\com\fasterxml\jackson\datatype\jackson-datatype-jdk8\2.18.3\jackson-datatype-jdk8-2.18.3.jar;D:\software\maven_repo\com\fasterxml\jackson\module\jackson-module-parameter-names\2.18.3\jackson-module-parameter-names-2.18.3.jar;D:\software\maven_repo\org\springframework\boot\spring-boot-starter-tomcat\3.4.5\spring-boot-starter-tomcat-3.4.5.jar;D:\software\maven_repo\org\apache\tomcat\embed\tomcat-embed-core\10.1.40\tomcat-embed-core-10.1.40.jar;D:\software\maven_repo\org\apache\tomcat\embed\tomcat-embed-websocket\10.1.40\tomcat-embed-websocket-10.1.40.jar;D:\software\maven_repo\org\springframework\spring-web\6.2.6\spring-web-6.2.6.jar;D:\software\maven_repo\org\springframework\spring-beans\6.2.6\spring-beans-6.2.6.jar;D:\software\maven_repo\io\micrometer\micrometer-observation\1.14.6\micrometer-observation-1.14.6.jar;D:\software\maven_repo\io\micrometer\micrometer-commons\1.14.6\micrometer-commons-1.14.6.jar;D:\software\maven_repo\org\springframework\spring-webmvc\6.2.6\spring-webmvc-6.2.6.jar;D:\software\maven_repo\org\springframework\spring-context\6.2.6\spring-context-6.2.6.jar;D:\software\maven_repo\org\springframework\spring-expression\6.2.6\spring-expression-6.2.6.jar;D:\software\maven_repo\org\springframework\boot\spring-boot-starter-validation\3.4.5\spring-boot-starter-validation-3.4.5.jar;D:\software\maven_repo\org\apache\tomcat\embed\tomcat-embed-el\10.1.40\tomcat-embed-el-10.1.40.jar;D:\software\maven_repo\org\hibernate\validator\hibernate-validator\8.0.2.Final\hibernate-validator-8.0.2.Final.jar;D:\software\maven_repo\jakarta\validation\jakarta.validation-api\3.0.2\jakarta.validation-api-3.0.2.jar;D:\software\maven_repo\org\jboss\logging\jboss-logging\3.6.1.Final\jboss-logging-3.6.1.Final.jar;D:\software\maven_repo\com\fasterxml\classmate\1.7.0\classmate-1.7.0.jar;D:\software\maven_repo\org\springframework\boot\spring-boot-starter-security\3.4.5\spring-boot-starter-security-3.4.5.jar;D:\software\maven_repo\org\springframework\spring-aop\6.2.6\spring-aop-6.2.6.jar;D:\software\maven_repo\org\springframework\security\spring-security-config\6.4.5\spring-security-config-6.4.5.jar;D:\software\maven_repo\org\springframework\security\spring-security-web\6.4.5\spring-security-web-6.4.5.jar;D:\software\maven_repo\org\springframework\boot\spring-boot-starter-data-jpa\3.4.5\spring-boot-starter-data-jpa-3.4.5.jar;D:\software\maven_repo\org\springframework\boot\spring-boot-starter-jdbc\3.4.5\spring-boot-starter-jdbc-3.4.5.jar;D:\software\maven_repo\com\zaxxer\HikariCP\5.1.0\HikariCP-5.1.0.jar;D:\software\maven_repo\org\springframework\spring-jdbc\6.2.6\spring-jdbc-6.2.6.jar;D:\software\maven_repo\org\hibernate\orm\hibernate-core\6.6.13.Final\hibernate-core-6.6.13.Final.jar;D:\software\maven_repo\jakarta\persistence\jakarta.persistence-api\3.1.0\jakarta.persistence-api-3.1.0.jar;D:\software\maven_repo\jakarta\transaction\jakarta.transaction-api\2.0.1\jakarta.transaction-api-2.0.1.jar;D:\software\maven_repo\org\hibernate\common\hibernate-commons-annotations\7.0.3.Final\hibernate-commons-annotations-7.0.3.Final.jar;D:\software\maven_repo\io\smallrye\jandex\3.2.0\jandex-3.2.0.jar;D:\software\maven_repo\net\bytebuddy\byte-buddy\1.15.11\byte-buddy-1.15.11.jar;D:\software\maven_repo\org\glassfish\jaxb\jaxb-runtime\4.0.5\jaxb-runtime-4.0.5.jar;D:\software\maven_repo\org\glassfish\jaxb\jaxb-core\4.0.5\jaxb-core-4.0.5.jar;D:\software\maven_repo\org\eclipse\angus\angus-activation\2.0.2\angus-activation-2.0.2.jar;D:\software\maven_repo\org\glassfish\jaxb\txw2\4.0.5\txw2-4.0.5.jar;D:\software\maven_repo\com\sun\istack\istack-commons-runtime\4.1.2\istack-commons-runtime-4.1.2.jar;D:\software\maven_repo\jakarta\inject\jakarta.inject-api\2.0.1\jakarta.inject-api-2.0.1.jar;D:\software\maven_repo\org\antlr\antlr4-runtime\4.13.0\antlr4-runtime-4.13.0.jar;D:\software\maven_repo\org\springframework\data\spring-data-jpa\3.4.5\spring-data-jpa-3.4.5.jar;D:\software\maven_repo\org\springframework\data\spring-data-commons\3.4.5\spring-data-commons-3.4.5.jar;D:\software\maven_repo\org\springframework\spring-orm\6.2.6\spring-orm-6.2.6.jar;D:\software\maven_repo\org\springframework\spring-tx\6.2.6\spring-tx-6.2.6.jar;D:\software\maven_repo\org\slf4j\slf4j-api\2.0.17\slf4j-api-2.0.17.jar;D:\software\maven_repo\org\springframework\spring-aspects\6.2.6\spring-aspects-6.2.6.jar;D:\software\maven_repo\org\aspectj\aspectjweaver\1.9.24\aspectjweaver-1.9.24.jar;D:\software\maven_repo\org\flywaydb\flyway-core\10.20.1\flyway-core-10.20.1.jar;D:\software\maven_repo\com\fasterxml\jackson\dataformat\jackson-dataformat-toml\2.18.3\jackson-dataformat-toml-2.18.3.jar;D:\software\maven_repo\com\fasterxml\jackson\core\jackson-core\2.18.3\jackson-core-2.18.3.jar;D:\software\maven_repo\com\fasterxml\jackson\datatype\jackson-datatype-jsr310\2.18.3\jackson-datatype-jsr310-2.18.3.jar;D:\software\maven_repo\com\fasterxml\jackson\core\jackson-annotations\2.18.3\jackson-annotations-2.18.3.jar;D:\software\maven_repo\org\flywaydb\flyway-database-postgresql\10.20.1\flyway-database-postgresql-10.20.1.jar;D:\software\maven_repo\org\postgresql\postgresql\42.7.5\postgresql-42.7.5.jar;D:\software\maven_repo\org\checkerframework\checker-qual\3.48.3\checker-qual-3.48.3.jar;D:\software\maven_repo\io\jsonwebtoken\jjwt-api\0.12.6\jjwt-api-0.12.6.jar;D:\software\maven_repo\io\jsonwebtoken\jjwt-impl\0.12.6\jjwt-impl-0.12.6.jar;D:\software\maven_repo\io\jsonwebtoken\jjwt-jackson\0.12.6\jjwt-jackson-0.12.6.jar;D:\software\maven_repo\com\fasterxml\jackson\core\jackson-databind\2.18.3\jackson-databind-2.18.3.jar;D:\software\maven_repo\org\springframework\boot\spring-boot-starter-test\3.4.5\spring-boot-starter-test-3.4.5.jar;D:\software\maven_repo\org\springframework\boot\spring-boot-test\3.4.5\spring-boot-test-3.4.5.jar;D:\software\maven_repo\org\springframework\boot\spring-boot-test-autoconfigure\3.4.5\spring-boot-test-autoconfigure-3.4.5.jar;D:\software\maven_repo\com\jayway\jsonpath\json-path\2.9.0\json-path-2.9.0.jar;D:\software\maven_repo\jakarta\xml\bind\jakarta.xml.bind-api\4.0.2\jakarta.xml.bind-api-4.0.2.jar;D:\software\maven_repo\jakarta\activation\jakarta.activation-api\2.1.3\jakarta.activation-api-2.1.3.jar;D:\software\maven_repo\net\minidev\json-smart\2.5.2\json-smart-2.5.2.jar;D:\software\maven_repo\net\minidev\accessors-smart\2.5.2\accessors-smart-2.5.2.jar;D:\software\maven_repo\org\ow2\asm\asm\9.7.1\asm-9.7.1.jar;D:\software\maven_repo\org\assertj\assertj-core\3.26.3\assertj-core-3.26.3.jar;D:\software\maven_repo\org\awaitility\awaitility\4.2.2\awaitility-4.2.2.jar;D:\software\maven_repo\org\hamcrest\hamcrest\2.2\hamcrest-2.2.jar;D:\software\maven_repo\org\junit\jupiter\junit-jupiter\5.11.4\junit-jupiter-5.11.4.jar;D:\software\maven_repo\org\junit\jupiter\junit-jupiter-api\5.11.4\junit-jupiter-api-5.11.4.jar;D:\software\maven_repo\org\opentest4j\opentest4j\1.3.0\opentest4j-1.3.0.jar;D:\software\maven_repo\org\junit\platform\junit-platform-commons\1.11.4\junit-platform-commons-1.11.4.jar;D:\software\maven_repo\org\apiguardian\apiguardian-api\1.1.2\apiguardian-api-1.1.2.jar;D:\software\maven_repo\org\junit\jupiter\junit-jupiter-params\5.11.4\junit-jupiter-params-5.11.4.jar;D:\software\maven_repo\org\junit\jupiter\junit-jupiter-engine\5.11.4\junit-jupiter-engine-5.11.4.jar;D:\software\maven_repo\org\junit\platform\junit-platform-engine\1.11.4\junit-platform-engine-1.11.4.jar;D:\software\maven_repo\org\mockito\mockito-core\5.14.2\mockito-core-5.14.2.jar;D:\software\maven_repo\net\bytebuddy\byte-buddy-agent\1.15.11\byte-buddy-agent-1.15.11.jar;D:\software\maven_repo\org\objenesis\objenesis\3.3\objenesis-3.3.jar;D:\software\maven_repo\org\mockito\mockito-junit-jupiter\5.14.2\mockito-junit-jupiter-5.14.2.jar;D:\software\maven_repo\org\skyscreamer\jsonassert\1.5.3\jsonassert-1.5.3.jar;D:\software\maven_repo\com\vaadin\external\google\android-json\0.0.20131108.vaadin1\android-json-0.0.20131108.vaadin1.jar;D:\software\maven_repo\org\springframework\spring-core\6.2.6\spring-core-6.2.6.jar;D:\software\maven_repo\org\springframework\spring-jcl\6.2.6\spring-jcl-6.2.6.jar;D:\software\maven_repo\org\springframework\spring-test\6.2.6\spring-test-6.2.6.jar;D:\software\maven_repo\org\xmlunit\xmlunit-core\2.10.0\xmlunit-core-2.10.0.jar;D:\software\maven_repo\org\springframework\security\spring-security-test\6.4.5\spring-security-test-6.4.5.jar;D:\software\maven_repo\org\springframework\security\spring-security-core\6.4.5\spring-security-core-6.4.5.jar;D:\software\maven_repo\org\springframework\security\spring-security-crypto\6.4.5\spring-security-crypto-6.4.5.jar;"/>
++    <property name="sun.cpu.endian" value="little"/>
++    <property name="user.home" value="C:\"/>
++    <property name="user.language" value="zh"/>
++    <property name="java.specification.vendor" value="Oracle Corporation"/>
++    <property name="java.version.date" value="2025-01-21"/>
++    <property name="java.home" value="D:\software\java21\jdk-21.0.6"/>
++    <property name="file.separator" value="\"/>
++    <property name="basedir" value="D:\codeWorkSpace\backend"/>
++    <property name="java.vm.compressedOopsMode" value="Zero based"/>
++    <property name="line.separator" value="&#10;"/>
++    <property name="java.vm.specification.vendor" value="Oracle Corporation"/>
++    <property name="java.specification.name" value="Java Platform API Specification"/>
++    <property name="surefire.real.class.path" value="C:\Users\PC\AppData\Local\Temp\surefire3087568088244435245\surefirebooter-20260812173318677_3.jar"/>
++    <property name="user.script" value=""/>
++    <property name="sun.management.compiler" value="HotSpot 64-Bit Tiered Compilers"/>
++    <property name="java.runtime.version" value="21.0.6+8-LTS-188"/>
++    <property name="user.name" value="PC"/>
++    <property name="stdout.encoding" value="GBK"/>
++    <property name="path.separator" value=";"/>
++    <property name="os.version" value="10.0"/>
++    <property name="java.runtime.name" value="Java(TM) SE Runtime Environment"/>
++    <property name="file.encoding" value="UTF-8"/>
++    <property name="java.vm.name" value="Java HotSpot(TM) 64-Bit Server VM"/>
++    <property name="localRepository" value="D:\software\maven_repo"/>
++    <property name="java.vendor.url.bug" value="https://bugreport.java.com/bugreport/"/>
++    <property name="java.io.tmpdir" value="C:\Users\PC\AppData\Local\Temp\"/>
++    <property name="java.version" value="21.0.6"/>
++    <property name="user.dir" value="D:\codeWorkSpace\backend"/>
++    <property name="os.arch" value="amd64"/>
++    <property name="java.vm.specification.name" value="Java Virtual Machine Specification"/>
++    <property name="sun.os.patch.level" value=""/>
++    <property name="native.encoding" value="GBK"/>
++    <property name="java.library.path" value="D:\software\java21\jdk-21.0.6\bin;C:\Windows\Sun\Java\bin;C:\Windows\system32;C:\Windows;C:\Users\PC\.codex\tmp\arg0\codex-arg0psFdrJ;C:\Users\PC\.cache\codex-runtimes\codex-primary-runtime\dependencies\bin\override;C:\Python314\Scripts\;C:\Python314\;C:\Program Files (x86)\Common Files\Oracle\Java\java8path;C:\Program Files (x86)\Common Files\Oracle\Java\javapath;C:\Python313\Scripts\;C:\Python313\;C:\Windows\system32;C:\Windows;C:\Windows\System32\Wbem;C:\Windows\System32\WindowsPowerShell\v1.0\;C:\Windows\System32\OpenSSH\;D:\software\java21\jdk-21.0.6\bin;D:\software\java21\jdk-21.0.6\jre\bin;D:\software\maven\apache-maven-3.9.6\bin;D:\software\Git\Git\cmd;C:\TDengine;D:\k8s;C:\ProgramData\chocolatey\bin;D:\go\bin;D:\go\\bin;D:\goWorkSpace\bin;C:\Program Files\Docker\Docker\resources\bin;D:\software\Node\;C:\Program Files\MySQL\MySQL Shell 8.0\bin\;C:\Users\PC\AppData\Local\Microsoft\WindowsApps;D:\software\VSCode\Microsoft VS Code\bin;C:\Users\PC\go\bin;D:\software\GoLand\GoLand 2025.1.1\bin;D:\software\datagrip\DataGrip 2025.2.4\bin;D:\pycharm\PyCharm 2025.3.3\bin;C:\Users\PC\AppData\Roaming\npm;C:\Users\PC\.cache\codex-runtimes\codex-primary-runtime\dependencies\bin\fallback;C:\Users\PC\.cache\codex-runtimes\codex-primary-runtime\dependencies\native\git\cmd;C:\Users\PC\AppData\Local\OpenAI\Codex\bin\ed3ef5e423c11bbd;C:\Program Files\WindowsApps\OpenAI.Codex_26.803.8161.0_x64__2p2nqsd0c76g0\app\resources;."/>
++    <property name="java.vm.info" value="mixed mode, sharing"/>
++    <property name="stderr.encoding" value="GBK"/>
++    <property name="java.vendor" value="Oracle Corporation"/>
++    <property name="java.vm.version" value="21.0.6+8-LTS-188"/>
++    <property name="sun.io.unicode.encoding" value="UnicodeLittle"/>
++    <property name="java.class.version" value="65.0"/>
++  </properties>
++  <testcase name="mapsDrawWithoutChangingJsonFieldValues" classname="com.dlt.predictor.lottery.dto.DrawResponseTest" time="0.034"/>
++</testsuite>
+\ No newline at end of file
+diff --git "a/D:\\codeWorkSpace\\backend/target/surefire-reports/TEST-com.dlt.predictor.prediction.dto.PredictionResponseTest.xml" "b/D:\\codeWorkSpace\\backend/target/surefire-reports/TEST-com.dlt.predictor.prediction.dto.PredictionResponseTest.xml"
+new file mode 100644
+index 0000000..69452dc
+--- /dev/null
++++ "b/D:\\codeWorkSpace\\backend/target/surefire-reports/TEST-com.dlt.predictor.prediction.dto.PredictionResponseTest.xml"
+@@ -0,0 +1,62 @@
++<?xml version="1.0" encoding="UTF-8"?>
++<testsuite xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="https://maven.apache.org/surefire/maven-surefire-plugin/xsd/surefire-test-report.xsd" version="3.0.2" name="com.dlt.predictor.prediction.dto.PredictionResponseTest" time="0.012" tests="1" errors="0" skipped="0" failures="0">
++  <properties>
++    <property name="java.specification.version" value="21"/>
++    <property name="sun.cpu.isalist" value="amd64"/>
++    <property name="sun.jnu.encoding" value="GBK"/>
++    <property name="java.class.path" value="D:\codeWorkSpace\backend\target\test-classes;D:\codeWorkSpace\backend\target\classes;D:\software\maven_repo\org\springframework\boot\spring-boot-starter-web\3.4.5\spring-boot-starter-web-3.4.5.jar;D:\software\maven_repo\org\springframework\boot\spring-boot-starter\3.4.5\spring-boot-starter-3.4.5.jar;D:\software\maven_repo\org\springframework\boot\spring-boot\3.4.5\spring-boot-3.4.5.jar;D:\software\maven_repo\org\springframework\boot\spring-boot-autoconfigure\3.4.5\spring-boot-autoconfigure-3.4.5.jar;D:\software\maven_repo\org\springframework\boot\spring-boot-starter-logging\3.4.5\spring-boot-starter-logging-3.4.5.jar;D:\software\maven_repo\ch\qos\logback\logback-classic\1.5.18\logback-classic-1.5.18.jar;D:\software\maven_repo\ch\qos\logback\logback-core\1.5.18\logback-core-1.5.18.jar;D:\software\maven_repo\org\apache\logging\log4j\log4j-to-slf4j\2.24.3\log4j-to-slf4j-2.24.3.jar;D:\software\maven_repo\org\apache\logging\log4j\log4j-api\2.24.3\log4j-api-2.24.3.jar;D:\software\maven_repo\org\slf4j\jul-to-slf4j\2.0.17\jul-to-slf4j-2.0.17.jar;D:\software\maven_repo\jakarta\annotation\jakarta.annotation-api\2.1.1\jakarta.annotation-api-2.1.1.jar;D:\software\maven_repo\org\yaml\snakeyaml\2.3\snakeyaml-2.3.jar;D:\software\maven_repo\org\springframework\boot\spring-boot-starter-json\3.4.5\spring-boot-starter-json-3.4.5.jar;D:\software\maven_repo\com\fasterxml\jackson\datatype\jackson-datatype-jdk8\2.18.3\jackson-datatype-jdk8-2.18.3.jar;D:\software\maven_repo\com\fasterxml\jackson\module\jackson-module-parameter-names\2.18.3\jackson-module-parameter-names-2.18.3.jar;D:\software\maven_repo\org\springframework\boot\spring-boot-starter-tomcat\3.4.5\spring-boot-starter-tomcat-3.4.5.jar;D:\software\maven_repo\org\apache\tomcat\embed\tomcat-embed-core\10.1.40\tomcat-embed-core-10.1.40.jar;D:\software\maven_repo\org\apache\tomcat\embed\tomcat-embed-websocket\10.1.40\tomcat-embed-websocket-10.1.40.jar;D:\software\maven_repo\org\springframework\spring-web\6.2.6\spring-web-6.2.6.jar;D:\software\maven_repo\org\springframework\spring-beans\6.2.6\spring-beans-6.2.6.jar;D:\software\maven_repo\io\micrometer\micrometer-observation\1.14.6\micrometer-observation-1.14.6.jar;D:\software\maven_repo\io\micrometer\micrometer-commons\1.14.6\micrometer-commons-1.14.6.jar;D:\software\maven_repo\org\springframework\spring-webmvc\6.2.6\spring-webmvc-6.2.6.jar;D:\software\maven_repo\org\springframework\spring-context\6.2.6\spring-context-6.2.6.jar;D:\software\maven_repo\org\springframework\spring-expression\6.2.6\spring-expression-6.2.6.jar;D:\software\maven_repo\org\springframework\boot\spring-boot-starter-validation\3.4.5\spring-boot-starter-validation-3.4.5.jar;D:\software\maven_repo\org\apache\tomcat\embed\tomcat-embed-el\10.1.40\tomcat-embed-el-10.1.40.jar;D:\software\maven_repo\org\hibernate\validator\hibernate-validator\8.0.2.Final\hibernate-validator-8.0.2.Final.jar;D:\software\maven_repo\jakarta\validation\jakarta.validation-api\3.0.2\jakarta.validation-api-3.0.2.jar;D:\software\maven_repo\org\jboss\logging\jboss-logging\3.6.1.Final\jboss-logging-3.6.1.Final.jar;D:\software\maven_repo\com\fasterxml\classmate\1.7.0\classmate-1.7.0.jar;D:\software\maven_repo\org\springframework\boot\spring-boot-starter-security\3.4.5\spring-boot-starter-security-3.4.5.jar;D:\software\maven_repo\org\springframework\spring-aop\6.2.6\spring-aop-6.2.6.jar;D:\software\maven_repo\org\springframework\security\spring-security-config\6.4.5\spring-security-config-6.4.5.jar;D:\software\maven_repo\org\springframework\security\spring-security-web\6.4.5\spring-security-web-6.4.5.jar;D:\software\maven_repo\org\springframework\boot\spring-boot-starter-data-jpa\3.4.5\spring-boot-starter-data-jpa-3.4.5.jar;D:\software\maven_repo\org\springframework\boot\spring-boot-starter-jdbc\3.4.5\spring-boot-starter-jdbc-3.4.5.jar;D:\software\maven_repo\com\zaxxer\HikariCP\5.1.0\HikariCP-5.1.0.jar;D:\software\maven_repo\org\springframework\spring-jdbc\6.2.6\spring-jdbc-6.2.6.jar;D:\software\maven_repo\org\hibernate\orm\hibernate-core\6.6.13.Final\hibernate-core-6.6.13.Final.jar;D:\software\maven_repo\jakarta\persistence\jakarta.persistence-api\3.1.0\jakarta.persistence-api-3.1.0.jar;D:\software\maven_repo\jakarta\transaction\jakarta.transaction-api\2.0.1\jakarta.transaction-api-2.0.1.jar;D:\software\maven_repo\org\hibernate\common\hibernate-commons-annotations\7.0.3.Final\hibernate-commons-annotations-7.0.3.Final.jar;D:\software\maven_repo\io\smallrye\jandex\3.2.0\jandex-3.2.0.jar;D:\software\maven_repo\net\bytebuddy\byte-buddy\1.15.11\byte-buddy-1.15.11.jar;D:\software\maven_repo\org\glassfish\jaxb\jaxb-runtime\4.0.5\jaxb-runtime-4.0.5.jar;D:\software\maven_repo\org\glassfish\jaxb\jaxb-core\4.0.5\jaxb-core-4.0.5.jar;D:\software\maven_repo\org\eclipse\angus\angus-activation\2.0.2\angus-activation-2.0.2.jar;D:\software\maven_repo\org\glassfish\jaxb\txw2\4.0.5\txw2-4.0.5.jar;D:\software\maven_repo\com\sun\istack\istack-commons-runtime\4.1.2\istack-commons-runtime-4.1.2.jar;D:\software\maven_repo\jakarta\inject\jakarta.inject-api\2.0.1\jakarta.inject-api-2.0.1.jar;D:\software\maven_repo\org\antlr\antlr4-runtime\4.13.0\antlr4-runtime-4.13.0.jar;D:\software\maven_repo\org\springframework\data\spring-data-jpa\3.4.5\spring-data-jpa-3.4.5.jar;D:\software\maven_repo\org\springframework\data\spring-data-commons\3.4.5\spring-data-commons-3.4.5.jar;D:\software\maven_repo\org\springframework\spring-orm\6.2.6\spring-orm-6.2.6.jar;D:\software\maven_repo\org\springframework\spring-tx\6.2.6\spring-tx-6.2.6.jar;D:\software\maven_repo\org\slf4j\slf4j-api\2.0.17\slf4j-api-2.0.17.jar;D:\software\maven_repo\org\springframework\spring-aspects\6.2.6\spring-aspects-6.2.6.jar;D:\software\maven_repo\org\aspectj\aspectjweaver\1.9.24\aspectjweaver-1.9.24.jar;D:\software\maven_repo\org\flywaydb\flyway-core\10.20.1\flyway-core-10.20.1.jar;D:\software\maven_repo\com\fasterxml\jackson\dataformat\jackson-dataformat-toml\2.18.3\jackson-dataformat-toml-2.18.3.jar;D:\software\maven_repo\com\fasterxml\jackson\core\jackson-core\2.18.3\jackson-core-2.18.3.jar;D:\software\maven_repo\com\fasterxml\jackson\datatype\jackson-datatype-jsr310\2.18.3\jackson-datatype-jsr310-2.18.3.jar;D:\software\maven_repo\com\fasterxml\jackson\core\jackson-annotations\2.18.3\jackson-annotations-2.18.3.jar;D:\software\maven_repo\org\flywaydb\flyway-database-postgresql\10.20.1\flyway-database-postgresql-10.20.1.jar;D:\software\maven_repo\org\postgresql\postgresql\42.7.5\postgresql-42.7.5.jar;D:\software\maven_repo\org\checkerframework\checker-qual\3.48.3\checker-qual-3.48.3.jar;D:\software\maven_repo\io\jsonwebtoken\jjwt-api\0.12.6\jjwt-api-0.12.6.jar;D:\software\maven_repo\io\jsonwebtoken\jjwt-impl\0.12.6\jjwt-impl-0.12.6.jar;D:\software\maven_repo\io\jsonwebtoken\jjwt-jackson\0.12.6\jjwt-jackson-0.12.6.jar;D:\software\maven_repo\com\fasterxml\jackson\core\jackson-databind\2.18.3\jackson-databind-2.18.3.jar;D:\software\maven_repo\org\springframework\boot\spring-boot-starter-test\3.4.5\spring-boot-starter-test-3.4.5.jar;D:\software\maven_repo\org\springframework\boot\spring-boot-test\3.4.5\spring-boot-test-3.4.5.jar;D:\software\maven_repo\org\springframework\boot\spring-boot-test-autoconfigure\3.4.5\spring-boot-test-autoconfigure-3.4.5.jar;D:\software\maven_repo\com\jayway\jsonpath\json-path\2.9.0\json-path-2.9.0.jar;D:\software\maven_repo\jakarta\xml\bind\jakarta.xml.bind-api\4.0.2\jakarta.xml.bind-api-4.0.2.jar;D:\software\maven_repo\jakarta\activation\jakarta.activation-api\2.1.3\jakarta.activation-api-2.1.3.jar;D:\software\maven_repo\net\minidev\json-smart\2.5.2\json-smart-2.5.2.jar;D:\software\maven_repo\net\minidev\accessors-smart\2.5.2\accessors-smart-2.5.2.jar;D:\software\maven_repo\org\ow2\asm\asm\9.7.1\asm-9.7.1.jar;D:\software\maven_repo\org\assertj\assertj-core\3.26.3\assertj-core-3.26.3.jar;D:\software\maven_repo\org\awaitility\awaitility\4.2.2\awaitility-4.2.2.jar;D:\software\maven_repo\org\hamcrest\hamcrest\2.2\hamcrest-2.2.jar;D:\software\maven_repo\org\junit\jupiter\junit-jupiter\5.11.4\junit-jupiter-5.11.4.jar;D:\software\maven_repo\org\junit\jupiter\junit-jupiter-api\5.11.4\junit-jupiter-api-5.11.4.jar;D:\software\maven_repo\org\opentest4j\opentest4j\1.3.0\opentest4j-1.3.0.jar;D:\software\maven_repo\org\junit\platform\junit-platform-commons\1.11.4\junit-platform-commons-1.11.4.jar;D:\software\maven_repo\org\apiguardian\apiguardian-api\1.1.2\apiguardian-api-1.1.2.jar;D:\software\maven_repo\org\junit\jupiter\junit-jupiter-params\5.11.4\junit-jupiter-params-5.11.4.jar;D:\software\maven_repo\org\junit\jupiter\junit-jupiter-engine\5.11.4\junit-jupiter-engine-5.11.4.jar;D:\software\maven_repo\org\junit\platform\junit-platform-engine\1.11.4\junit-platform-engine-1.11.4.jar;D:\software\maven_repo\org\mockito\mockito-core\5.14.2\mockito-core-5.14.2.jar;D:\software\maven_repo\net\bytebuddy\byte-buddy-agent\1.15.11\byte-buddy-agent-1.15.11.jar;D:\software\maven_repo\org\objenesis\objenesis\3.3\objenesis-3.3.jar;D:\software\maven_repo\org\mockito\mockito-junit-jupiter\5.14.2\mockito-junit-jupiter-5.14.2.jar;D:\software\maven_repo\org\skyscreamer\jsonassert\1.5.3\jsonassert-1.5.3.jar;D:\software\maven_repo\com\vaadin\external\google\android-json\0.0.20131108.vaadin1\android-json-0.0.20131108.vaadin1.jar;D:\software\maven_repo\org\springframework\spring-core\6.2.6\spring-core-6.2.6.jar;D:\software\maven_repo\org\springframework\spring-jcl\6.2.6\spring-jcl-6.2.6.jar;D:\software\maven_repo\org\springframework\spring-test\6.2.6\spring-test-6.2.6.jar;D:\software\maven_repo\org\xmlunit\xmlunit-core\2.10.0\xmlunit-core-2.10.0.jar;D:\software\maven_repo\org\springframework\security\spring-security-test\6.4.5\spring-security-test-6.4.5.jar;D:\software\maven_repo\org\springframework\security\spring-security-core\6.4.5\spring-security-core-6.4.5.jar;D:\software\maven_repo\org\springframework\security\spring-security-crypto\6.4.5\spring-security-crypto-6.4.5.jar;"/>
++    <property name="java.vm.vendor" value="Oracle Corporation"/>
++    <property name="sun.arch.data.model" value="64"/>
++    <property name="user.variant" value=""/>
++    <property name="java.vendor.url" value="https://java.oracle.com/"/>
++    <property name="user.timezone" value="Asia/Shanghai"/>
++    <property name="os.name" value="Windows 10"/>
++    <property name="java.vm.specification.version" value="21"/>
++    <property name="sun.java.launcher" value="SUN_STANDARD"/>
++    <property name="user.country" value="CN"/>
++    <property name="sun.boot.library.path" value="D:\software\java21\jdk-21.0.6\bin"/>
++    <property name="sun.java.command" value="C:\Users\PC\AppData\Local\Temp\surefire3087568088244435245\surefirebooter-20260812173318677_3.jar C:\Users\PC\AppData\Local\Temp\surefire3087568088244435245 2026-08-12T17-33-10_509-jvmRun1 surefire-20260812173318677_1tmp surefire_0-20260812173318677_2tmp"/>
++    <property name="jdk.debug" value="release"/>
++    <property name="surefire.test.class.path" value="D:\codeWorkSpace\backend\target\test-classes;D:\codeWorkSpace\backend\target\classes;D:\software\maven_repo\org\springframework\boot\spring-boot-starter-web\3.4.5\spring-boot-starter-web-3.4.5.jar;D:\software\maven_repo\org\springframework\boot\spring-boot-starter\3.4.5\spring-boot-starter-3.4.5.jar;D:\software\maven_repo\org\springframework\boot\spring-boot\3.4.5\spring-boot-3.4.5.jar;D:\software\maven_repo\org\springframework\boot\spring-boot-autoconfigure\3.4.5\spring-boot-autoconfigure-3.4.5.jar;D:\software\maven_repo\org\springframework\boot\spring-boot-starter-logging\3.4.5\spring-boot-starter-logging-3.4.5.jar;D:\software\maven_repo\ch\qos\logback\logback-classic\1.5.18\logback-classic-1.5.18.jar;D:\software\maven_repo\ch\qos\logback\logback-core\1.5.18\logback-core-1.5.18.jar;D:\software\maven_repo\org\apache\logging\log4j\log4j-to-slf4j\2.24.3\log4j-to-slf4j-2.24.3.jar;D:\software\maven_repo\org\apache\logging\log4j\log4j-api\2.24.3\log4j-api-2.24.3.jar;D:\software\maven_repo\org\slf4j\jul-to-slf4j\2.0.17\jul-to-slf4j-2.0.17.jar;D:\software\maven_repo\jakarta\annotation\jakarta.annotation-api\2.1.1\jakarta.annotation-api-2.1.1.jar;D:\software\maven_repo\org\yaml\snakeyaml\2.3\snakeyaml-2.3.jar;D:\software\maven_repo\org\springframework\boot\spring-boot-starter-json\3.4.5\spring-boot-starter-json-3.4.5.jar;D:\software\maven_repo\com\fasterxml\jackson\datatype\jackson-datatype-jdk8\2.18.3\jackson-datatype-jdk8-2.18.3.jar;D:\software\maven_repo\com\fasterxml\jackson\module\jackson-module-parameter-names\2.18.3\jackson-module-parameter-names-2.18.3.jar;D:\software\maven_repo\org\springframework\boot\spring-boot-starter-tomcat\3.4.5\spring-boot-starter-tomcat-3.4.5.jar;D:\software\maven_repo\org\apache\tomcat\embed\tomcat-embed-core\10.1.40\tomcat-embed-core-10.1.40.jar;D:\software\maven_repo\org\apache\tomcat\embed\tomcat-embed-websocket\10.1.40\tomcat-embed-websocket-10.1.40.jar;D:\software\maven_repo\org\springframework\spring-web\6.2.6\spring-web-6.2.6.jar;D:\software\maven_repo\org\springframework\spring-beans\6.2.6\spring-beans-6.2.6.jar;D:\software\maven_repo\io\micrometer\micrometer-observation\1.14.6\micrometer-observation-1.14.6.jar;D:\software\maven_repo\io\micrometer\micrometer-commons\1.14.6\micrometer-commons-1.14.6.jar;D:\software\maven_repo\org\springframework\spring-webmvc\6.2.6\spring-webmvc-6.2.6.jar;D:\software\maven_repo\org\springframework\spring-context\6.2.6\spring-context-6.2.6.jar;D:\software\maven_repo\org\springframework\spring-expression\6.2.6\spring-expression-6.2.6.jar;D:\software\maven_repo\org\springframework\boot\spring-boot-starter-validation\3.4.5\spring-boot-starter-validation-3.4.5.jar;D:\software\maven_repo\org\apache\tomcat\embed\tomcat-embed-el\10.1.40\tomcat-embed-el-10.1.40.jar;D:\software\maven_repo\org\hibernate\validator\hibernate-validator\8.0.2.Final\hibernate-validator-8.0.2.Final.jar;D:\software\maven_repo\jakarta\validation\jakarta.validation-api\3.0.2\jakarta.validation-api-3.0.2.jar;D:\software\maven_repo\org\jboss\logging\jboss-logging\3.6.1.Final\jboss-logging-3.6.1.Final.jar;D:\software\maven_repo\com\fasterxml\classmate\1.7.0\classmate-1.7.0.jar;D:\software\maven_repo\org\springframework\boot\spring-boot-starter-security\3.4.5\spring-boot-starter-security-3.4.5.jar;D:\software\maven_repo\org\springframework\spring-aop\6.2.6\spring-aop-6.2.6.jar;D:\software\maven_repo\org\springframework\security\spring-security-config\6.4.5\spring-security-config-6.4.5.jar;D:\software\maven_repo\org\springframework\security\spring-security-web\6.4.5\spring-security-web-6.4.5.jar;D:\software\maven_repo\org\springframework\boot\spring-boot-starter-data-jpa\3.4.5\spring-boot-starter-data-jpa-3.4.5.jar;D:\software\maven_repo\org\springframework\boot\spring-boot-starter-jdbc\3.4.5\spring-boot-starter-jdbc-3.4.5.jar;D:\software\maven_repo\com\zaxxer\HikariCP\5.1.0\HikariCP-5.1.0.jar;D:\software\maven_repo\org\springframework\spring-jdbc\6.2.6\spring-jdbc-6.2.6.jar;D:\software\maven_repo\org\hibernate\orm\hibernate-core\6.6.13.Final\hibernate-core-6.6.13.Final.jar;D:\software\maven_repo\jakarta\persistence\jakarta.persistence-api\3.1.0\jakarta.persistence-api-3.1.0.jar;D:\software\maven_repo\jakarta\transaction\jakarta.transaction-api\2.0.1\jakarta.transaction-api-2.0.1.jar;D:\software\maven_repo\org\hibernate\common\hibernate-commons-annotations\7.0.3.Final\hibernate-commons-annotations-7.0.3.Final.jar;D:\software\maven_repo\io\smallrye\jandex\3.2.0\jandex-3.2.0.jar;D:\software\maven_repo\net\bytebuddy\byte-buddy\1.15.11\byte-buddy-1.15.11.jar;D:\software\maven_repo\org\glassfish\jaxb\jaxb-runtime\4.0.5\jaxb-runtime-4.0.5.jar;D:\software\maven_repo\org\glassfish\jaxb\jaxb-core\4.0.5\jaxb-core-4.0.5.jar;D:\software\maven_repo\org\eclipse\angus\angus-activation\2.0.2\angus-activation-2.0.2.jar;D:\software\maven_repo\org\glassfish\jaxb\txw2\4.0.5\txw2-4.0.5.jar;D:\software\maven_repo\com\sun\istack\istack-commons-runtime\4.1.2\istack-commons-runtime-4.1.2.jar;D:\software\maven_repo\jakarta\inject\jakarta.inject-api\2.0.1\jakarta.inject-api-2.0.1.jar;D:\software\maven_repo\org\antlr\antlr4-runtime\4.13.0\antlr4-runtime-4.13.0.jar;D:\software\maven_repo\org\springframework\data\spring-data-jpa\3.4.5\spring-data-jpa-3.4.5.jar;D:\software\maven_repo\org\springframework\data\spring-data-commons\3.4.5\spring-data-commons-3.4.5.jar;D:\software\maven_repo\org\springframework\spring-orm\6.2.6\spring-orm-6.2.6.jar;D:\software\maven_repo\org\springframework\spring-tx\6.2.6\spring-tx-6.2.6.jar;D:\software\maven_repo\org\slf4j\slf4j-api\2.0.17\slf4j-api-2.0.17.jar;D:\software\maven_repo\org\springframework\spring-aspects\6.2.6\spring-aspects-6.2.6.jar;D:\software\maven_repo\org\aspectj\aspectjweaver\1.9.24\aspectjweaver-1.9.24.jar;D:\software\maven_repo\org\flywaydb\flyway-core\10.20.1\flyway-core-10.20.1.jar;D:\software\maven_repo\com\fasterxml\jackson\dataformat\jackson-dataformat-toml\2.18.3\jackson-dataformat-toml-2.18.3.jar;D:\software\maven_repo\com\fasterxml\jackson\core\jackson-core\2.18.3\jackson-core-2.18.3.jar;D:\software\maven_repo\com\fasterxml\jackson\datatype\jackson-datatype-jsr310\2.18.3\jackson-datatype-jsr310-2.18.3.jar;D:\software\maven_repo\com\fasterxml\jackson\core\jackson-annotations\2.18.3\jackson-annotations-2.18.3.jar;D:\software\maven_repo\org\flywaydb\flyway-database-postgresql\10.20.1\flyway-database-postgresql-10.20.1.jar;D:\software\maven_repo\org\postgresql\postgresql\42.7.5\postgresql-42.7.5.jar;D:\software\maven_repo\org\checkerframework\checker-qual\3.48.3\checker-qual-3.48.3.jar;D:\software\maven_repo\io\jsonwebtoken\jjwt-api\0.12.6\jjwt-api-0.12.6.jar;D:\software\maven_repo\io\jsonwebtoken\jjwt-impl\0.12.6\jjwt-impl-0.12.6.jar;D:\software\maven_repo\io\jsonwebtoken\jjwt-jackson\0.12.6\jjwt-jackson-0.12.6.jar;D:\software\maven_repo\com\fasterxml\jackson\core\jackson-databind\2.18.3\jackson-databind-2.18.3.jar;D:\software\maven_repo\org\springframework\boot\spring-boot-starter-test\3.4.5\spring-boot-starter-test-3.4.5.jar;D:\software\maven_repo\org\springframework\boot\spring-boot-test\3.4.5\spring-boot-test-3.4.5.jar;D:\software\maven_repo\org\springframework\boot\spring-boot-test-autoconfigure\3.4.5\spring-boot-test-autoconfigure-3.4.5.jar;D:\software\maven_repo\com\jayway\jsonpath\json-path\2.9.0\json-path-2.9.0.jar;D:\software\maven_repo\jakarta\xml\bind\jakarta.xml.bind-api\4.0.2\jakarta.xml.bind-api-4.0.2.jar;D:\software\maven_repo\jakarta\activation\jakarta.activation-api\2.1.3\jakarta.activation-api-2.1.3.jar;D:\software\maven_repo\net\minidev\json-smart\2.5.2\json-smart-2.5.2.jar;D:\software\maven_repo\net\minidev\accessors-smart\2.5.2\accessors-smart-2.5.2.jar;D:\software\maven_repo\org\ow2\asm\asm\9.7.1\asm-9.7.1.jar;D:\software\maven_repo\org\assertj\assertj-core\3.26.3\assertj-core-3.26.3.jar;D:\software\maven_repo\org\awaitility\awaitility\4.2.2\awaitility-4.2.2.jar;D:\software\maven_repo\org\hamcrest\hamcrest\2.2\hamcrest-2.2.jar;D:\software\maven_repo\org\junit\jupiter\junit-jupiter\5.11.4\junit-jupiter-5.11.4.jar;D:\software\maven_repo\org\junit\jupiter\junit-jupiter-api\5.11.4\junit-jupiter-api-5.11.4.jar;D:\software\maven_repo\org\opentest4j\opentest4j\1.3.0\opentest4j-1.3.0.jar;D:\software\maven_repo\org\junit\platform\junit-platform-commons\1.11.4\junit-platform-commons-1.11.4.jar;D:\software\maven_repo\org\apiguardian\apiguardian-api\1.1.2\apiguardian-api-1.1.2.jar;D:\software\maven_repo\org\junit\jupiter\junit-jupiter-params\5.11.4\junit-jupiter-params-5.11.4.jar;D:\software\maven_repo\org\junit\jupiter\junit-jupiter-engine\5.11.4\junit-jupiter-engine-5.11.4.jar;D:\software\maven_repo\org\junit\platform\junit-platform-engine\1.11.4\junit-platform-engine-1.11.4.jar;D:\software\maven_repo\org\mockito\mockito-core\5.14.2\mockito-core-5.14.2.jar;D:\software\maven_repo\net\bytebuddy\byte-buddy-agent\1.15.11\byte-buddy-agent-1.15.11.jar;D:\software\maven_repo\org\objenesis\objenesis\3.3\objenesis-3.3.jar;D:\software\maven_repo\org\mockito\mockito-junit-jupiter\5.14.2\mockito-junit-jupiter-5.14.2.jar;D:\software\maven_repo\org\skyscreamer\jsonassert\1.5.3\jsonassert-1.5.3.jar;D:\software\maven_repo\com\vaadin\external\google\android-json\0.0.20131108.vaadin1\android-json-0.0.20131108.vaadin1.jar;D:\software\maven_repo\org\springframework\spring-core\6.2.6\spring-core-6.2.6.jar;D:\software\maven_repo\org\springframework\spring-jcl\6.2.6\spring-jcl-6.2.6.jar;D:\software\maven_repo\org\springframework\spring-test\6.2.6\spring-test-6.2.6.jar;D:\software\maven_repo\org\xmlunit\xmlunit-core\2.10.0\xmlunit-core-2.10.0.jar;D:\software\maven_repo\org\springframework\security\spring-security-test\6.4.5\spring-security-test-6.4.5.jar;D:\software\maven_repo\org\springframework\security\spring-security-core\6.4.5\spring-security-core-6.4.5.jar;D:\software\maven_repo\org\springframework\security\spring-security-crypto\6.4.5\spring-security-crypto-6.4.5.jar;"/>
++    <property name="sun.cpu.endian" value="little"/>
++    <property name="user.home" value="C:\"/>
++    <property name="user.language" value="zh"/>
++    <property name="java.specification.vendor" value="Oracle Corporation"/>
++    <property name="java.version.date" value="2025-01-21"/>
++    <property name="java.home" value="D:\software\java21\jdk-21.0.6"/>
++    <property name="file.separator" value="\"/>
++    <property name="basedir" value="D:\codeWorkSpace\backend"/>
++    <property name="java.vm.compressedOopsMode" value="Zero based"/>
++    <property name="line.separator" value="&#10;"/>
++    <property name="java.vm.specification.vendor" value="Oracle Corporation"/>
++    <property name="java.specification.name" value="Java Platform API Specification"/>
++    <property name="surefire.real.class.path" value="C:\Users\PC\AppData\Local\Temp\surefire3087568088244435245\surefirebooter-20260812173318677_3.jar"/>
++    <property name="user.script" value=""/>
++    <property name="sun.management.compiler" value="HotSpot 64-Bit Tiered Compilers"/>
++    <property name="java.runtime.version" value="21.0.6+8-LTS-188"/>
++    <property name="user.name" value="PC"/>
++    <property name="stdout.encoding" value="GBK"/>
++    <property name="path.separator" value=";"/>
++    <property name="os.version" value="10.0"/>
++    <property name="java.runtime.name" value="Java(TM) SE Runtime Environment"/>
++    <property name="file.encoding" value="UTF-8"/>
++    <property name="java.vm.name" value="Java HotSpot(TM) 64-Bit Server VM"/>
++    <property name="localRepository" value="D:\software\maven_repo"/>
++    <property name="java.vendor.url.bug" value="https://bugreport.java.com/bugreport/"/>
++    <property name="java.io.tmpdir" value="C:\Users\PC\AppData\Local\Temp\"/>
++    <property name="java.version" value="21.0.6"/>
++    <property name="user.dir" value="D:\codeWorkSpace\backend"/>
++    <property name="os.arch" value="amd64"/>
++    <property name="java.vm.specification.name" value="Java Virtual Machine Specification"/>
++    <property name="sun.os.patch.level" value=""/>
++    <property name="native.encoding" value="GBK"/>
++    <property name="java.library.path" value="D:\software\java21\jdk-21.0.6\bin;C:\Windows\Sun\Java\bin;C:\Windows\system32;C:\Windows;C:\Users\PC\.codex\tmp\arg0\codex-arg0psFdrJ;C:\Users\PC\.cache\codex-runtimes\codex-primary-runtime\dependencies\bin\override;C:\Python314\Scripts\;C:\Python314\;C:\Program Files (x86)\Common Files\Oracle\Java\java8path;C:\Program Files (x86)\Common Files\Oracle\Java\javapath;C:\Python313\Scripts\;C:\Python313\;C:\Windows\system32;C:\Windows;C:\Windows\System32\Wbem;C:\Windows\System32\WindowsPowerShell\v1.0\;C:\Windows\System32\OpenSSH\;D:\software\java21\jdk-21.0.6\bin;D:\software\java21\jdk-21.0.6\jre\bin;D:\software\maven\apache-maven-3.9.6\bin;D:\software\Git\Git\cmd;C:\TDengine;D:\k8s;C:\ProgramData\chocolatey\bin;D:\go\bin;D:\go\\bin;D:\goWorkSpace\bin;C:\Program Files\Docker\Docker\resources\bin;D:\software\Node\;C:\Program Files\MySQL\MySQL Shell 8.0\bin\;C:\Users\PC\AppData\Local\Microsoft\WindowsApps;D:\software\VSCode\Microsoft VS Code\bin;C:\Users\PC\go\bin;D:\software\GoLand\GoLand 2025.1.1\bin;D:\software\datagrip\DataGrip 2025.2.4\bin;D:\pycharm\PyCharm 2025.3.3\bin;C:\Users\PC\AppData\Roaming\npm;C:\Users\PC\.cache\codex-runtimes\codex-primary-runtime\dependencies\bin\fallback;C:\Users\PC\.cache\codex-runtimes\codex-primary-runtime\dependencies\native\git\cmd;C:\Users\PC\AppData\Local\OpenAI\Codex\bin\ed3ef5e423c11bbd;C:\Program Files\WindowsApps\OpenAI.Codex_26.803.8161.0_x64__2p2nqsd0c76g0\app\resources;."/>
++    <property name="java.vm.info" value="mixed mode, sharing"/>
++    <property name="stderr.encoding" value="GBK"/>
++    <property name="java.vendor" value="Oracle Corporation"/>
++    <property name="java.vm.version" value="21.0.6+8-LTS-188"/>
++    <property name="sun.io.unicode.encoding" value="UnicodeLittle"/>
++    <property name="java.class.version" value="65.0"/>
++  </properties>
++  <testcase name="keepsRecommendationPayloadFields" classname="com.dlt.predictor.prediction.dto.PredictionResponseTest" time="0.009"/>
++</testsuite>
+\ No newline at end of file
+diff --git "a/D:\\codeWorkSpace\\backend/target/surefire-reports/com.dlt.predictor.CoreDomainTest.txt" "b/D:\\codeWorkSpace\\backend/target/surefire-reports/com.dlt.predictor.CoreDomainTest.txt"
+new file mode 100644
+index 0000000..9b15ebc
+--- /dev/null
++++ "b/D:\\codeWorkSpace\\backend/target/surefire-reports/com.dlt.predictor.CoreDomainTest.txt"
+@@ -0,0 +1,4 @@
++-------------------------------------------------------------------------------
++Test set: com.dlt.predictor.CoreDomainTest
++-------------------------------------------------------------------------------
++Tests run: 2, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.106 s -- in com.dlt.predictor.CoreDomainTest
+diff --git "a/D:\\codeWorkSpace\\backend/target/surefire-reports/com.dlt.predictor.lottery.dto.DrawResponseTest.txt" "b/D:\\codeWorkSpace\\backend/target/surefire-reports/com.dlt.predictor.lottery.dto.DrawResponseTest.txt"
+new file mode 100644
+index 0000000..43195c3
+--- /dev/null
++++ "b/D:\\codeWorkSpace\\backend/target/surefire-reports/com.dlt.predictor.lottery.dto.DrawResponseTest.txt"
+@@ -0,0 +1,4 @@
++-------------------------------------------------------------------------------
++Test set: com.dlt.predictor.lottery.dto.DrawResponseTest
++-------------------------------------------------------------------------------
++Tests run: 1, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.036 s -- in com.dlt.predictor.lottery.dto.DrawResponseTest
+diff --git "a/D:\\codeWorkSpace\\backend/target/surefire-reports/com.dlt.predictor.prediction.dto.PredictionResponseTest.txt" "b/D:\\codeWorkSpace\\backend/target/surefire-reports/com.dlt.predictor.prediction.dto.PredictionResponseTest.txt"
+new file mode 100644
+index 0000000..26d8017
+--- /dev/null
++++ "b/D:\\codeWorkSpace\\backend/target/surefire-reports/com.dlt.predictor.prediction.dto.PredictionResponseTest.txt"
+@@ -0,0 +1,4 @@
++-------------------------------------------------------------------------------
++Test set: com.dlt.predictor.prediction.dto.PredictionResponseTest
++-------------------------------------------------------------------------------
++Tests run: 1, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.012 s -- in com.dlt.predictor.prediction.dto.PredictionResponseTest
+diff --git "a/D:\\codeWorkSpace\\backend/target/test-classes/com/dlt/predictor/CoreDomainTest.class" "b/D:\\codeWorkSpace\\backend/target/test-classes/com/dlt/predictor/CoreDomainTest.class"
+new file mode 100644
+index 0000000..7c2bb4f
+Binary files /dev/null and "b/D:\\codeWorkSpace\\backend/target/test-classes/com/dlt/predictor/CoreDomainTest.class" differ
+diff --git "a/D:\\codeWorkSpace\\backend/target/test-classes/com/dlt/predictor/lottery/dto/DrawResponseTest.class" "b/D:\\codeWorkSpace\\backend/target/test-classes/com/dlt/predictor/lottery/dto/DrawResponseTest.class"
+new file mode 100644
+index 0000000..1434f53
+Binary files /dev/null and "b/D:\\codeWorkSpace\\backend/target/test-classes/com/dlt/predictor/lottery/dto/DrawResponseTest.class" differ
+diff --git "a/D:\\codeWorkSpace\\backend/target/test-classes/com/dlt/predictor/prediction/dto/PredictionResponseTest.class" "b/D:\\codeWorkSpace\\backend/target/test-classes/com/dlt/predictor/prediction/dto/PredictionResponseTest.class"
+new file mode 100644
+index 0000000..80c1d38
+Binary files /dev/null and "b/D:\\codeWorkSpace\\backend/target/test-classes/com/dlt/predictor/prediction/dto/PredictionResponseTest.class" differ

@@ -1,0 +1,16 @@
+/* 最小化浏览器默认样式差异，为 Element Plus 和页面组件提供基线。 */
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-width: 320px;
+  color: var(--color-text);
+  background: var(--color-page);
+}
+
+button,
+input {
+  font: inherit;
+}

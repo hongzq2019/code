@@ -1,0 +1,4 @@
+#NOTE: This is a Maven Resolver internal implementation file, its format can be changed without prior notice.
+#Thu Aug 13 08:38:56 CST 2026
+postgresql-42.7.5.jar>mirror=
+postgresql-42.7.5.pom>mirror=

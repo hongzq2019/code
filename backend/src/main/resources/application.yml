@@ -1,0 +1,40 @@
+spring:
+  application:
+    name: dlt-predictor
+  datasource:
+    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://192.168.50.39:5432/dlt}
+    username: ${SPRING_DATASOURCE_USERNAME:postgres}
+    password: ${SPRING_DATASOURCE_PASSWORD:Anjie@2025}
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    open-in-view: false
+  flyway:
+    enabled: true
+    # public schema 已通过 complete_schema_and_seed.sql 初始化时，首次启动将其标记为 V1。
+    # 后续新增的 V2、V3 等迁移仍会正常执行。
+    baseline-on-migrate: true
+    baseline-version: 1
+    baseline-description: existing dlt schema
+
+server:
+  port: 8080
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+
+milvus:
+  host: ${MILVUS_HOST:localhost}
+  port: ${MILVUS_PORT:19530}
+  collection-name: ${MILVUS_COLLECTION_NAME:dlt_draw_vectors}
+  sync-batch-size: ${MILVUS_SYNC_BATCH_SIZE:100}
+
+lottery:
+  dlt:
+    source-url: ${DLT_SOURCE_URL:https://webapi.sporttery.cn/gateway/lottery/getHistoryPageListV1.qry}
+    page-size: ${DLT_FETCH_PAGE_SIZE:30}
+    sync-cron: ${DLT_SYNC_CRON:0 30 22 * * MON,WED,SAT}
+    time-zone: ${DLT_SYNC_TIME_ZONE:Asia/Shanghai}

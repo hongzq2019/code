@@ -1,0 +1,5 @@
+package com.dlt.predictor.prediction; import com.dlt.predictor.lottery.DltNumbers;import java.time.*;import java.time.temporal.ChronoUnit;import java.util.*;
+public class RecommendationEngine{
+ public RecommendationResult recommend(List<SimilarDraw>d,LocalDate now){var f=scores(d,now,true);var b=scores(d,now,false);return new RecommendationResult(DltNumbers.of(top(f,5),top(b,2)),f,b,List.copyOf(d),"mvp-1.0",Instant.now(),"仅根据历史数据相似性生成，用于数据分析与娱乐，不构成中奖概率承诺。");}
+ private Map<Integer,Double> scores(List<SimilarDraw>d,LocalDate now,boolean front){Map<Integer,Double>r=new TreeMap<>();for(var x:d){double w=x.similarity()*Math.exp(-Math.max(0,ChronoUnit.DAYS.between(x.drawDate(),now))/730.0);(front?x.numbers().front():x.numbers().back()).forEach(n->r.merge(n,w,Double::sum));}return Map.copyOf(r);}
+ private List<Integer> top(Map<Integer,Double>s,int c){return s.entrySet().stream().sorted(Map.Entry.<Integer,Double>comparingByValue().reversed().thenComparing(Map.Entry.comparingByKey())).limit(c).map(Map.Entry::getKey).sorted().toList();}}
