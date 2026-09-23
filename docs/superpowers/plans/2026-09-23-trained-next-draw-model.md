@@ -593,7 +593,7 @@ Remove `PredictionInputType`, custom-number fields, and `SimilarDraw`. Define `P
 
 - [ ] **Step 2: Replace the prediction form and result layout**
 
-Remove radio buttons, number inputs, parsing logic, and similar-history table. Keep one “生成下一期参考号码” button. Render `result.predictions` as responsive cards; label `DYNAMIC_ENSEMBLE` as “主推荐”, render `NumberBalls`, model version/waterline/draw count, four validation metrics, and ensemble weights when non-null. Show the shared disclaimer once below the cards.
+Remove radio buttons, number inputs, parsing logic, and similar-history table. Keep one “生成下一期参考号码” button and add a model selector containing all three results. Default to `DYNAMIC_ENSEMBLE`, switch locally without another API request, and render only the selected model in one responsive card. Label `DYNAMIC_ENSEMBLE` as “主推荐”, render `NumberBalls`, model version/waterline/draw count, four validation metrics, and ensemble weights when non-null. Show the shared disclaimer once below the card.
 
 - [ ] **Step 3: Add manual page count and model retraining APIs**
 

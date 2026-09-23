@@ -1,32 +1,54 @@
 import type { DltNumbers } from './lottery'
 
-/** 预测输入可取最近一期开奖或用户自定义号码。 */
-export type PredictionInputType = 'LATEST_DRAW' | 'CUSTOM_NUMBERS'
+/** 后端支持的三种下一期开奖模型。 */
+export type PredictionModelType =
+  | 'LOGISTIC_REGRESSION'
+  | 'VECTOR_TRANSITION'
+  | 'DYNAMIC_ENSEMBLE'
 
-/** 发起预测时提交给后端的号码及相似样本数量。 */
-export interface PredictionRequest {
-  inputType: PredictionInputType
-  topK: number
-  frontNumbers: number[]
-  backNumbers: number[]
+/** 滚动验证指标及对应随机基线。 */
+export interface ModelMetrics {
+  frontLogLoss: number
+  backLogLoss: number
+  frontMeanHits: number
+  backMeanHits: number
+  frontBaselineLogLoss: number
+  backBaselineLogLoss: number
+  frontBaselineHits: number
+  backBaselineHits: number
 }
 
-/** Milvus 向量检索命中的历史相似开奖。 */
-export interface SimilarDraw {
-  drawId: number
-  issueNo: string
-  drawDate: string
-  numbers: DltNumbers
-  similarity: number
+/** 动态集成模型在前后区分别使用的基础模型权重。 */
+export interface EnsembleWeights {
+  frontLogisticWeight: number
+  frontVectorWeight: number
+  backLogisticWeight: number
+  backVectorWeight: number
+  logisticModelVersion: string
+  vectorModelVersion: string
 }
 
-/** 推荐引擎的完整输出，含推荐号码、评分与相似样本。 */
-export interface PredictionResult {
+/** 单个模型的号码、完整候选分数及训练信息。 */
+export interface ModelPrediction {
+  type: PredictionModelType
+  name: string
   numbers: DltNumbers
   frontScores: Record<string, number>
   backScores: Record<string, number>
-  similarDraws: SimilarDraw[]
   modelVersion: string
+  trainedAt: string
+  drawCount: number
+  trainedThroughIssueNo: string
+  metrics: ModelMetrics
+  ensembleWeights: EnsembleWeights | null
+  frontBeatsBaseline: boolean
+  backBeatsBaseline: boolean
+}
+
+/** 同一生效批次生成的三模型下一期开奖预测。 */
+export interface PredictionResult {
   generatedAt: string
+  basedOnIssueNo: string
   disclaimer: string
+  predictions: ModelPrediction[]
 }

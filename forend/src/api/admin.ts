@@ -7,6 +7,7 @@ import type {
   PendingUserPage,
   PendingUserQuery,
   SyncResult,
+  TrainingRunResult,
 } from '../types/admin'
 
 /** 按页获取等待管理员审批的注册账户。 */
@@ -24,9 +25,19 @@ export async function approveUser(username: string, request: ApprovalRequest): P
   unwrap(response)
 }
 
-/** 手动触发官方大乐透开奖数据抓取与向量索引同步。 */
-export async function runDltSync(): Promise<SyncResult> {
-  const response = await client.post<ApiEnvelope<SyncResult>>('/api/v1/admin/dlt/sync')
+/** 手动触发指定页数的官方开奖抓取与向量索引同步。 */
+export async function runDltSync(pageCount = 30): Promise<SyncResult> {
+  const response = await client.post<ApiEnvelope<SyncResult>>('/api/v1/admin/dlt/sync', null, {
+    params: { pageCount },
+  })
+  return unwrap(response)
+}
+
+/** 立即执行三种预测模型的完整训练和批次切换。 */
+export async function retrainModels(): Promise<TrainingRunResult> {
+  const response = await client.post<ApiEnvelope<TrainingRunResult>>(
+    '/api/v1/admin/dlt/model/retrain',
+  )
   return unwrap(response)
 }
 

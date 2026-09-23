@@ -1,0 +1,63 @@
+.prediction-action-card {
+  margin-bottom: var(--space-5);
+}
+
+.prediction-actions,
+.admin-sync-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  align-items: center;
+}
+
+.prediction-model-select {
+  width: min(260px, 100%);
+}
+
+.prediction-grid,
+.admin-sync-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: var(--space-5);
+}
+
+.prediction-card {
+  min-width: 0;
+}
+
+.prediction-card__header {
+  display: flex;
+  gap: var(--space-3);
+  align-items: center;
+  justify-content: space-between;
+}
+
+.prediction-metadata {
+  margin-top: var(--space-4);
+  overflow-wrap: anywhere;
+}
+
+.ensemble-weights {
+  display: grid;
+  gap: var(--space-2);
+  margin-top: var(--space-4);
+  color: var(--color-text-muted);
+  overflow-wrap: anywhere;
+}
+
+.admin-sync-grid .el-alert,
+.admin-sync-grid .el-table {
+  margin-top: var(--space-4);
+}
+
+@media (max-width: 520px) {
+  .prediction-grid,
+  .admin-sync-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .prediction-actions > *,
+  .admin-sync-actions > * {
+    width: 100%;
+  }
+}
