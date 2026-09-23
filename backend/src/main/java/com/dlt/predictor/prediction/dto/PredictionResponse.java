@@ -1,34 +1,16 @@
 package com.dlt.predictor.prediction.dto;
 
-import com.dlt.predictor.lottery.DltNumbers;
-import com.dlt.predictor.prediction.RecommendationResult;
-import com.dlt.predictor.prediction.SimilarDraw;
 import java.time.Instant;
 import java.util.List;
-import java.util.Map;
 
 /**
  *
- * 面向前端的推荐响应，保留号码分数和相似样本以解释推荐来源。
+ * 三种已生效模型对下一期开奖的预测结果及训练水位。
  *
  */
 public record PredictionResponse(
-        DltNumbers numbers,
-        Map<Integer, Double> frontScores,
-        Map<Integer, Double> backScores,
-        List<SimilarDraw> similarDraws,
-        String modelVersion,
         Instant generatedAt,
-        String disclaimer) {
-
-    public static PredictionResponse from(RecommendationResult result) {
-        return new PredictionResponse(
-                result.numbers(),
-                result.frontScores(),
-                result.backScores(),
-                result.similarDraws(),
-                result.modelVersion(),
-                result.generatedAt(),
-                result.disclaimer());
-    }
+        String basedOnIssueNo,
+        String disclaimer,
+        List<ModelPredictionResponse> predictions) {
 }
