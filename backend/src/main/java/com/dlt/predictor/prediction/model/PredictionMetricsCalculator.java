@@ -1,5 +1,6 @@
 package com.dlt.predictor.prediction.model;
 
+import com.dlt.predictor.lottery.Draw;
 import java.util.List;
 import java.util.Map;
 
@@ -25,5 +26,47 @@ public final class PredictionMetricsCalculator {
             total -= actual.contains(number) ? Math.log(probability) : Math.log(1.0 - probability);
         }
         return total / candidates;
+    }
+
+    public static ModelMetrics calculate(List<Draw> draws, RollingPredictionSet validation) {
+        if (validation.periods().isEmpty()) {
+            throw new IllegalArgumentException("验证预测不能为空");
+        }
+        double frontLoss = 0;
+        double backLoss = 0;
+        double frontHits = 0;
+        double backHits = 0;
+        for (RollingPredictionSet.PeriodPrediction period : validation.periods()) {
+            Draw actual = draws.get(period.targetIndex());
+            frontLoss += logLoss(period.front().values(), actual.numbers().front(), NumberZone.FRONT.candidateCount());
+            backLoss += logLoss(period.back().values(), actual.numbers().back(), NumberZone.BACK.candidateCount());
+            frontHits += topNumbers(period.front().values(), NumberZone.FRONT.selectionCount()).stream()
+                    .filter(actual.numbers().front()::contains).count();
+            backHits += topNumbers(period.back().values(), NumberZone.BACK.selectionCount()).stream()
+                    .filter(actual.numbers().back()::contains).count();
+        }
+        int count = validation.periods().size();
+        frontLoss /= count;
+        backLoss /= count;
+        frontHits /= count;
+        backHits /= count;
+        double frontBaselineLoss = baselineLogLoss(NumberZone.FRONT);
+        double backBaselineLoss = baselineLogLoss(NumberZone.BACK);
+        double frontBaselineHits = baselineHits(NumberZone.FRONT);
+        double backBaselineHits = baselineHits(NumberZone.BACK);
+        return new ModelMetrics(
+                frontLoss, backLoss, frontHits, backHits,
+                frontBaselineLoss, backBaselineLoss, frontBaselineHits, backBaselineHits,
+                frontLoss < frontBaselineLoss || frontHits > frontBaselineHits,
+                backLoss < backBaselineLoss || backHits > backBaselineHits);
+    }
+
+    private static double baselineLogLoss(NumberZone zone) {
+        double probability = zone.selectionCount() / (double) zone.candidateCount();
+        return -(probability * Math.log(probability) + (1 - probability) * Math.log(1 - probability));
+    }
+
+    private static double baselineHits(NumberZone zone) {
+        return zone.selectionCount() * zone.selectionCount() / (double) zone.candidateCount();
     }
 }

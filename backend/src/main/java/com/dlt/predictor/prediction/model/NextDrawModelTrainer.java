@@ -43,7 +43,7 @@ public class NextDrawModelTrainer {
                 datasetBuilder.samples(draws, NumberZone.BACK, targetFrom, draws.size()),
                 NumberZone.BACK);
         RollingPredictionSet validation = new RollingPredictionSet(List.copyOf(periods));
-        ModelMetrics metrics = metrics(draws, validation);
+        ModelMetrics metrics = PredictionMetricsCalculator.calculate(draws, validation);
         int sampleCount = (draws.size() - targetFrom)
                 * (NumberZone.FRONT.candidateCount() + NumberZone.BACK.candidateCount());
         return new TrainedLogisticModel(
@@ -62,44 +62,5 @@ public class NextDrawModelTrainer {
         datasetBuilder.latestFeatures(history, zone)
                 .forEach((number, features) -> scores.put(number, regressionTrainer.predict(weights, features)));
         return new CandidateScores(scores);
-    }
-
-    private static ModelMetrics metrics(List<Draw> draws, RollingPredictionSet validation) {
-        double frontLoss = 0;
-        double backLoss = 0;
-        double frontHits = 0;
-        double backHits = 0;
-        for (RollingPredictionSet.PeriodPrediction period : validation.periods()) {
-            Draw actual = draws.get(period.targetIndex());
-            frontLoss += PredictionMetricsCalculator.logLoss(
-                    period.front().values(), actual.numbers().front(), NumberZone.FRONT.candidateCount());
-            backLoss += PredictionMetricsCalculator.logLoss(
-                    period.back().values(), actual.numbers().back(), NumberZone.BACK.candidateCount());
-            frontHits += PredictionMetricsCalculator.topNumbers(
-                    period.front().values(), NumberZone.FRONT.selectionCount()).stream()
-                    .filter(actual.numbers().front()::contains).count();
-            backHits += PredictionMetricsCalculator.topNumbers(
-                    period.back().values(), NumberZone.BACK.selectionCount()).stream()
-                    .filter(actual.numbers().back()::contains).count();
-        }
-        int count = validation.periods().size();
-        frontLoss /= count;
-        backLoss /= count;
-        frontHits /= count;
-        backHits /= count;
-        double frontBaselineLoss = baselineLogLoss(NumberZone.FRONT);
-        double backBaselineLoss = baselineLogLoss(NumberZone.BACK);
-        double frontBaselineHits = 25.0 / 35;
-        double backBaselineHits = 4.0 / 12;
-        return new ModelMetrics(
-                frontLoss, backLoss, frontHits, backHits,
-                frontBaselineLoss, backBaselineLoss, frontBaselineHits, backBaselineHits,
-                frontLoss < frontBaselineLoss || frontHits > frontBaselineHits,
-                backLoss < backBaselineLoss || backHits > backBaselineHits);
-    }
-
-    private static double baselineLogLoss(NumberZone zone) {
-        double probability = zone.selectionCount() / (double) zone.candidateCount();
-        return -(probability * Math.log(probability) + (1 - probability) * Math.log(1 - probability));
     }
 }
