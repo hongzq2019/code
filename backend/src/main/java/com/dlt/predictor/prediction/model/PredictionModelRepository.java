@@ -10,6 +10,6 @@ interface PredictionModelRepository extends JpaRepository<PredictionModelEntity,
     List<PredictionModelEntity> findByStatusOrderByModelTypeAsc(PredictionModelStatus status);
 
     @Modifying
-    @Query("update PredictionModelEntity model set model.status = 'INACTIVE' where model.status = 'ACTIVE'")
+    @Query(value = "UPDATE prediction_model SET status = 'INACTIVE' WHERE status = 'ACTIVE'", nativeQuery = true)
     int deactivateAllActive();
 }
