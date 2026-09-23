@@ -6,7 +6,7 @@ import org.springframework.stereotype.Service;
 
 /**
  *
- * 将 PostgreSQL 中待同步或失败的开奖记录编码后幂等写入 Milvus。
+ * 将 PostgreSQL 中待同步或失败的开奖记录编码后幂等写入全部 Milvus 索引。
  *
  */
 @Service
@@ -26,12 +26,14 @@ public class DrawVectorSyncService {
         java.util.List<Draw> pendingDraws = drawStore.pendingOrFailedForVectorSync();
         for (Draw draw : pendingDraws) {
             try {
-                // write 成功才转换为 READY，防止关系库宣称已索引但 Milvus 实际未写入。
-                vectorStore.upsert(draw.id(), FeatureEncoder.encode(draw.numbers()));
+                vectorStore.upsert(
+                        draw.id(),
+                        FeatureEncoder.encodeJoint(draw.numbers()),
+                        FeatureEncoder.encodeFront(draw.numbers()),
+                        FeatureEncoder.encodeBack(draw.numbers()));
                 drawStore.markVectorReady(draw.id());
                 succeeded++;
             } catch (RuntimeException exception) {
-                // 单条失败不阻断剩余记录，保留失败原因供下次补偿和人工重试。
                 drawStore.markVectorFailed(draw.id(), exception.getMessage());
                 failed++;
             }

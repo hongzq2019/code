@@ -30,6 +30,7 @@ milvus:
   host: ${MILVUS_HOST:localhost}
   port: ${MILVUS_PORT:19530}
   collection-name: ${MILVUS_COLLECTION_NAME:dlt_draw_vectors}
+  transition-collection-name: ${MILVUS_TRANSITION_COLLECTION_NAME:dlt_draw_transition_vectors}
   sync-batch-size: ${MILVUS_SYNC_BATCH_SIZE:100}
 
 lottery:
