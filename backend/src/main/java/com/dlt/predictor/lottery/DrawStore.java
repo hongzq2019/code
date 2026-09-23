@@ -75,6 +75,12 @@ public class DrawStore {
                 .toList();
     }
 
+    public List<Draw> allChronological() {
+        return drawRepository.findAllByOrderByDrawDateAscIdAsc().stream()
+                .map(DrawEntity::toDraw)
+                .toList();
+    }
+
     /**
      * 按开奖日期范围升序查询记录，为历史点位分析提供稳定的时间序列。
      */

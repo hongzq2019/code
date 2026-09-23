@@ -17,6 +17,8 @@ interface DrawRepository extends JpaRepository<DrawEntity, Long> {
 
     List<DrawEntity> findAllByOrderByDrawDateDesc();
 
+    List<DrawEntity> findAllByOrderByDrawDateAscIdAsc();
+
     List<DrawEntity> findByDrawDateBetweenOrderByDrawDateAsc(LocalDate startDate, LocalDate endDate);
 
     List<DrawEntity> findByIdIn(Collection<Long> ids);
