@@ -67,8 +67,9 @@ async function submit(): Promise<void> {
   </el-card>
 
   <PageState :loading="loading" :error="errorMessage" :empty="!selectedPrediction">
-    <div v-if="result && selectedPrediction" class="prediction-grid">
-      <el-card class="prediction-card">
+    <div v-if="result && selectedPrediction" class="prediction-result">
+      <div class="prediction-grid">
+        <el-card class="prediction-card">
         <template #header>
           <div class="prediction-card__header">
             <span>{{ selectedPrediction.name }}</span>
@@ -98,7 +99,8 @@ async function submit(): Promise<void> {
           <span>前区：逻辑回归 {{ percentage(selectedPrediction.ensembleWeights.frontLogisticWeight) }} / 向量转移 {{ percentage(selectedPrediction.ensembleWeights.frontVectorWeight) }}</span>
           <span>后区：逻辑回归 {{ percentage(selectedPrediction.ensembleWeights.backLogisticWeight) }} / 向量转移 {{ percentage(selectedPrediction.ensembleWeights.backVectorWeight) }}</span>
         </div>
-      </el-card>
+        </el-card>
+      </div>
       <RiskDisclaimer :message="result.disclaimer" />
     </div>
   </PageState>

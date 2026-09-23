@@ -21,6 +21,10 @@
   gap: var(--space-5);
 }
 
+.prediction-result > .el-alert {
+  margin-top: var(--space-4);
+}
+
 .prediction-card {
   min-width: 0;
 }
