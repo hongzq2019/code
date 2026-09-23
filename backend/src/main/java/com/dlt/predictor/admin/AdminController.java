@@ -7,11 +7,17 @@ import com.dlt.predictor.lottery.DltCrawlerResult;
 import com.dlt.predictor.lottery.DltCrawlerService;
 import com.dlt.predictor.lottery.Draw;
 import com.dlt.predictor.lottery.DrawStore;
+import com.dlt.predictor.lottery.DrawUpsertResult;
 import com.dlt.predictor.prediction.DrawVectorSyncService;
 import com.dlt.predictor.prediction.VectorSyncResult;
+import com.dlt.predictor.prediction.model.ModelTrainingCoordinator;
+import com.dlt.predictor.prediction.model.TrainingRunResult;
+import com.dlt.predictor.prediction.model.TrainingRunStatus;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
+import org.springframework.http.HttpStatus;
+import org.springframework.web.server.ResponseStatusException;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -23,7 +29,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 /**
  *
- * 管理端接口：处理用户审核、官方开奖同步、人工导入及 Milvus 索引重试。
+ * 管理端接口：处理用户审核、官方开奖同步、人工导入、向量补偿及模型重训。
  *
  */
 @RestController
@@ -35,16 +41,19 @@ public class AdminController {
     private final DrawStore drawStore;
     private final DrawVectorSyncService drawVectorSyncService;
     private final DltCrawlerService dltCrawlerService;
+    private final ModelTrainingCoordinator modelTrainingCoordinator;
 
     AdminController(
             AuthService authService,
             DrawStore drawStore,
             DrawVectorSyncService drawVectorSyncService,
-            DltCrawlerService dltCrawlerService) {
+            DltCrawlerService dltCrawlerService,
+            ModelTrainingCoordinator modelTrainingCoordinator) {
         this.authService = authService;
         this.drawStore = drawStore;
         this.drawVectorSyncService = drawVectorSyncService;
         this.dltCrawlerService = dltCrawlerService;
+        this.modelTrainingCoordinator = modelTrainingCoordinator;
     }
 
     /**
@@ -84,18 +93,21 @@ public class AdminController {
 
     /**
      *
-     * 供管理员补录或修正开奖数据，成功入库后立即补偿待同步向量。
+     * 供管理员补录或修正开奖数据，向量同步后按需异步重训模型。
      *
      */
     @PostMapping("/dlt/import")
     ApiResponse<Draw> importDraw(@Valid @RequestBody ImportDrawRequest request) {
-        Draw draw = drawStore.upsert(
+        DrawUpsertResult result = drawStore.upsertWithResult(
                 request.issueNo(),
                 request.drawDate(),
                 request.frontNumbers(),
                 request.backNumbers());
         drawVectorSyncService.syncPendingAndFailed();
-        return ApiResponse.ok(draw);
+        if (result.vectorRefreshRequired()) {
+            modelTrainingCoordinator.requestRetrain();
+        }
+        return ApiResponse.ok(result.draw());
     }
 
     /**
@@ -106,5 +118,19 @@ public class AdminController {
     @PostMapping("/dlt/vectors/retry")
     ApiResponse<VectorSyncResult> retryVectors() {
         return ApiResponse.ok(drawVectorSyncService.syncPendingAndFailed());
+    }
+
+    /**
+     *
+     * 立即执行一次完整训练，并仅在整批满足条件时切换生效模型。
+     *
+     */
+    @PostMapping("/dlt/model/retrain")
+    ApiResponse<ModelTrainingResponse> retrainModel() {
+        TrainingRunResult result = modelTrainingCoordinator.retrainNow();
+        if (result.status() == TrainingRunStatus.FAILED) {
+            throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, result.message());
+        }
+        return ApiResponse.ok(ModelTrainingResponse.from(result));
     }
 }

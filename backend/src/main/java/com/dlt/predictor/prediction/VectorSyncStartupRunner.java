@@ -4,6 +4,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.boot.ApplicationArguments;
 import org.springframework.boot.ApplicationRunner;
+import org.springframework.core.annotation.Order;
 import org.springframework.stereotype.Component;
 
 /**
@@ -12,6 +13,7 @@ import org.springframework.stereotype.Component;
  *
  */
 @Component
+@Order(10)
 class VectorSyncStartupRunner implements ApplicationRunner {
 
     private static final Logger LOGGER = LoggerFactory.getLogger(VectorSyncStartupRunner.class);
@@ -24,7 +26,6 @@ class VectorSyncStartupRunner implements ApplicationRunner {
 
     @Override
     public void run(ApplicationArguments args) {
-        // 同步异常被服务转换为 FAILED 状态，因此启动过程不会因单条记录失败而终止。
         VectorSyncResult result = drawVectorSyncService.syncPendingAndFailed();
         if (result.failed() > 0) {
             LOGGER.warn("Milvus vector synchronization completed with failures: {}", result);

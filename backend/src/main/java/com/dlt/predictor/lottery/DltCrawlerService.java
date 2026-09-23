@@ -2,13 +2,15 @@ package com.dlt.predictor.lottery;
 
 import com.dlt.predictor.prediction.DrawVectorSyncService;
 import com.dlt.predictor.prediction.VectorSyncResult;
+import com.dlt.predictor.prediction.model.ModelTrainingCoordinator;
 import java.time.Instant;
 import java.util.List;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 /**
  *
- * 协调一次官方开奖采集：分页抓取、按期号入库、补偿 Milvus，并记录完整任务日志。
+ * 协调一次官方开奖采集：分页抓取、按期号入库、补偿 Milvus，并触发模型更新。
  *
  */
 @Service
@@ -19,6 +21,23 @@ public class DltCrawlerService {
     private final DrawVectorSyncService drawVectorSyncService;
     private final CrawlerJobLogRepository crawlerJobLogRepository;
     private final SportteryDltProperties properties;
+    private final ModelTrainingCoordinator modelTrainingCoordinator;
+
+    @Autowired
+    DltCrawlerService(
+            SportteryDltClient sportteryDltClient,
+            DrawStore drawStore,
+            DrawVectorSyncService drawVectorSyncService,
+            CrawlerJobLogRepository crawlerJobLogRepository,
+            SportteryDltProperties properties,
+            ModelTrainingCoordinator modelTrainingCoordinator) {
+        this.sportteryDltClient = sportteryDltClient;
+        this.drawStore = drawStore;
+        this.drawVectorSyncService = drawVectorSyncService;
+        this.crawlerJobLogRepository = crawlerJobLogRepository;
+        this.properties = properties;
+        this.modelTrainingCoordinator = modelTrainingCoordinator;
+    }
 
     DltCrawlerService(
             SportteryDltClient sportteryDltClient,
@@ -26,11 +45,7 @@ public class DltCrawlerService {
             DrawVectorSyncService drawVectorSyncService,
             CrawlerJobLogRepository crawlerJobLogRepository,
             SportteryDltProperties properties) {
-        this.sportteryDltClient = sportteryDltClient;
-        this.drawStore = drawStore;
-        this.drawVectorSyncService = drawVectorSyncService;
-        this.crawlerJobLogRepository = crawlerJobLogRepository;
-        this.properties = properties;
+        this(sportteryDltClient, drawStore, drawVectorSyncService, crawlerJobLogRepository, properties, null);
     }
 
     public DltCrawlerResult importRecentDraws() {
@@ -48,6 +63,9 @@ public class DltCrawlerService {
                 }
             }
             VectorSyncResult vectorSyncResult = drawVectorSyncService.syncPendingAndFailed();
+            if (changedCount > 0 && modelTrainingCoordinator != null) {
+                modelTrainingCoordinator.requestRetrain();
+            }
             String result = vectorSyncResult.failed() == 0 ? "SUCCESS" : "PARTIAL";
             String message = vectorSyncResult.failed() == 0
                     ? "已从中国体彩网同步开奖数据和向量索引"

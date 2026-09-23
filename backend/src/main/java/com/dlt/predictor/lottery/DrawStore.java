@@ -31,13 +31,20 @@ public class DrawStore {
             LocalDate drawDate,
             List<Integer> frontNumbers,
             List<Integer> backNumbers) {
-        // 人工录入没有原始响应载荷，使用独立来源标识以便后续追溯。
-        return upsertInternal(issueNo, drawDate, frontNumbers, backNumbers, MANUAL_SOURCE, null).draw();
+        return upsertWithResult(issueNo, drawDate, frontNumbers, backNumbers).draw();
+    }
+
+    @Transactional
+    public DrawUpsertResult upsertWithResult(
+            String issueNo,
+            LocalDate drawDate,
+            List<Integer> frontNumbers,
+            List<Integer> backNumbers) {
+        return upsertInternal(issueNo, drawDate, frontNumbers, backNumbers, MANUAL_SOURCE, null);
     }
 
     @Transactional
     DrawUpsertResult upsertOfficial(OfficialDraw officialDraw) {
-        // 官方数据保留来源 URL 与原始 JSON，方便诊断数据争议或接口变更。
         return upsertInternal(
                 officialDraw.issueNo(),
                 officialDraw.drawDate(),
@@ -55,7 +62,6 @@ public class DrawStore {
             String sourceUrl,
             String sourcePayload) {
         DltNumbers numbers = DltNumbers.of(frontNumbers, backNumbers);
-        // 在 lambda 内携带更新结果；新建记录或号码/日期变动时才需要重算向量。
         boolean[] vectorRefreshRequired = {false};
         DrawEntity entity = drawRepository.findByIssueNo(issueNo)
                 .map(existing -> {
@@ -81,9 +87,6 @@ public class DrawStore {
                 .toList();
     }
 
-    /**
-     * 按开奖日期范围升序查询记录，为历史点位分析提供稳定的时间序列。
-     */
     public List<Draw> findByDateRange(LocalDate startDate, LocalDate endDate) {
         return drawRepository.findByDrawDateBetweenOrderByDrawDateAsc(startDate, endDate).stream()
                 .map(DrawEntity::toDraw)
@@ -95,7 +98,6 @@ public class DrawStore {
     }
 
     public List<Draw> findByIdsInOrder(Collection<Long> ids) {
-        // JPA 的 IN 查询不保证返回顺序，按 Milvus 命中顺序重组结果。
         Map<Long, Draw> drawsById = drawRepository.findByIdIn(ids).stream()
                 .map(DrawEntity::toDraw)
                 .collect(java.util.stream.Collectors.toMap(Draw::id, Function.identity()));
@@ -103,8 +105,8 @@ public class DrawStore {
     }
 
     public List<Draw> pendingOrFailedForVectorSync() {
-        // FAILED 同样进入补偿队列，使短暂的 Milvus 故障可在后续任务中自动恢复。
-        return drawRepository.findByVectorStatusInOrderByDrawDateAsc(List.of(VectorStatus.PENDING, VectorStatus.FAILED)).stream()
+        return drawRepository.findByVectorStatusInOrderByDrawDateAsc(
+                        List.of(VectorStatus.PENDING, VectorStatus.FAILED)).stream()
                 .map(DrawEntity::toDraw)
                 .toList();
     }
