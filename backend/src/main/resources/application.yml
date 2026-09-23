@@ -36,5 +36,6 @@ lottery:
   dlt:
     source-url: ${DLT_SOURCE_URL:https://webapi.sporttery.cn/gateway/lottery/getHistoryPageListV1.qry}
     page-size: ${DLT_FETCH_PAGE_SIZE:30}
+    page-count: ${DLT_FETCH_PAGE_COUNT:30}
     sync-cron: ${DLT_SYNC_CRON:0 30 22 * * MON,WED,SAT}
     time-zone: ${DLT_SYNC_TIME_ZONE:Asia/Shanghai}

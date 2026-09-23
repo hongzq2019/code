@@ -3,15 +3,16 @@ package com.dlt.predictor.admin;
 import com.dlt.predictor.api.ApiResponse;
 import com.dlt.predictor.auth.AuthService;
 import com.dlt.predictor.auth.PendingUserPageResponse;
-import com.dlt.predictor.lottery.Draw;
-import com.dlt.predictor.lottery.DrawStore;
 import com.dlt.predictor.lottery.DltCrawlerResult;
 import com.dlt.predictor.lottery.DltCrawlerService;
+import com.dlt.predictor.lottery.Draw;
+import com.dlt.predictor.lottery.DrawStore;
 import com.dlt.predictor.prediction.DrawVectorSyncService;
 import com.dlt.predictor.prediction.VectorSyncResult;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
+import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -19,7 +20,6 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
-import org.springframework.validation.annotation.Validated;
 
 /**
  *
@@ -30,9 +30,6 @@ import org.springframework.validation.annotation.Validated;
 @RequestMapping("/api/v1/admin")
 @Validated
 public class AdminController {
-
-    private static final String SUCCESS_RESULT = "SUCCESS";
-    private static final String SYNC_MESSAGE = "MVP 使用手动导入与可配置采集适配层";
 
     private final AuthService authService;
     private final DrawStore drawStore;
@@ -72,13 +69,17 @@ public class AdminController {
 
     /**
      *
-     * 立即执行一次官方采集；与定时任务复用相同的数据处理流程。
+     * 立即执行一次官方采集；未指定页数时与定时任务使用相同的默认配置。
      *
      */
     @PostMapping("/dlt/sync")
-    ApiResponse<SyncResponse> sync() {
-        DltCrawlerResult result = dltCrawlerService.importRecentDraws();
-        return ApiResponse.ok(new SyncResponse(result.result(), result.insertedCount(), result.message()));
+    ApiResponse<SyncResponse> sync(
+            @RequestParam(required = false) @Min(1) @Max(100) Integer pageCount) {
+        DltCrawlerResult result = pageCount == null
+                ? dltCrawlerService.importRecentDraws()
+                : dltCrawlerService.importRecentDraws(pageCount);
+        return ApiResponse.ok(new SyncResponse(
+                result.result(), result.fetchedCount(), result.insertedCount(), result.message()));
     }
 
     /**
