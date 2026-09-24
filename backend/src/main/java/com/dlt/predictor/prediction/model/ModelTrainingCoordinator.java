@@ -11,13 +11,14 @@ import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.locks.ReentrantLock;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.core.task.TaskExecutor;
 import org.springframework.stereotype.Service;
 
 /**
  *
- * 协调三种预测模型的训练、评估和同批次原子激活。
+ * 协调四种预测模型的训练、评估和同批次原子激活。
  *
  */
 @Service
@@ -28,22 +29,48 @@ public class ModelTrainingCoordinator {
     private static final String LOGISTIC_ALGORITHM = "logistic-l2-v1";
     private static final String VECTOR_ALGORITHM = "vector-transition-v1";
     private static final String ENSEMBLE_ALGORITHM = "dynamic-ensemble-v1";
+    private static final String DECAYED_FREQUENCY_ALGORITHM = "decayed-frequency-v1";
 
     private final DrawStore drawStore;
     private final PredictionModelStore modelStore;
     private final ObjectMapper objectMapper;
     private final TaskExecutor taskExecutor;
+    private final NextDrawModelTrainer logisticTrainer;
+    private final VectorTransitionModelTrainer vectorTrainer;
+    private final DynamicEnsembleTrainer ensembleTrainer;
+    private final DecayedFrequencyModelTrainer decayedTrainer;
     private final ReentrantLock trainingLock = new ReentrantLock(true);
 
+    @Autowired
     public ModelTrainingCoordinator(
             DrawStore drawStore,
             PredictionModelStore modelStore,
             ObjectMapper objectMapper,
             @Qualifier("modelTrainingExecutor") TaskExecutor taskExecutor) {
+        this(drawStore, modelStore, objectMapper, taskExecutor,
+                new NextDrawModelTrainer(),
+                new VectorTransitionModelTrainer(),
+                new DynamicEnsembleTrainer(),
+                new DecayedFrequencyModelTrainer());
+    }
+
+    ModelTrainingCoordinator(
+            DrawStore drawStore,
+            PredictionModelStore modelStore,
+            ObjectMapper objectMapper,
+            TaskExecutor taskExecutor,
+            NextDrawModelTrainer logisticTrainer,
+            VectorTransitionModelTrainer vectorTrainer,
+            DynamicEnsembleTrainer ensembleTrainer,
+            DecayedFrequencyModelTrainer decayedTrainer) {
         this.drawStore = drawStore;
         this.modelStore = modelStore;
         this.objectMapper = objectMapper;
         this.taskExecutor = taskExecutor;
+        this.logisticTrainer = logisticTrainer;
+        this.vectorTrainer = vectorTrainer;
+        this.ensembleTrainer = ensembleTrainer;
+        this.decayedTrainer = decayedTrainer;
     }
 
     public TrainingRunStatus requestRetrain() {
@@ -97,12 +124,14 @@ public class ModelTrainingCoordinator {
         String logisticVersion = "logistic-" + batchVersion;
         String vectorVersion = "vector-" + batchVersion;
         String ensembleVersion = "ensemble-" + batchVersion;
+        String decayedVersion = "decayed-frequency-" + batchVersion;
 
-        TrainedLogisticModel logistic = new NextDrawModelTrainer().train(draws, folds);
-        TrainedVectorTransitionModel vector = new VectorTransitionModelTrainer().train(draws, folds);
-        TrainedEnsembleModel ensemble = new DynamicEnsembleTrainer().train(
+        TrainedLogisticModel logistic = logisticTrainer.train(draws, folds);
+        TrainedVectorTransitionModel vector = vectorTrainer.train(draws, folds);
+        TrainedEnsembleModel ensemble = ensembleTrainer.train(
                 draws, logistic.validationPredictions(), vector.validationPredictions(),
                 logisticVersion, vectorVersion);
+        TrainedDecayedFrequencyModel decayed = decayedTrainer.train(draws, folds);
         Draw waterline = draws.getLast();
         Instant trainedAt = Instant.now();
         List<ModelSnapshot> candidates = List.of(
@@ -115,7 +144,10 @@ public class ModelTrainingCoordinator {
                 snapshot(PredictionModelType.DYNAMIC_ENSEMBLE, ensembleVersion, ENSEMBLE_ALGORITHM,
                         batchVersion, serialize(ensemble.artifact()), 0,
                         draws.size(), ensemble.validationPredictions().periods().size(),
-                        waterline, trainedAt, ensemble.metrics()));
+                        waterline, trainedAt, ensemble.metrics()),
+                snapshot(PredictionModelType.DECAYED_FREQUENCY, decayedVersion, DECAYED_FREQUENCY_ALGORITHM,
+                        batchVersion, serialize(decayed.artifact()), 0,
+                        draws.size(), decayed.sampleCount(), waterline, trainedAt, decayed.metrics()));
 
         boolean retainActive = !ensemble.eligible() && modelStore.activeBatch().isPresent();
         List<ModelSnapshot> persisted = retainActive
@@ -125,7 +157,7 @@ public class ModelTrainingCoordinator {
                 ? TrainingRunStatus.RETAINED_ACTIVE_MODEL : TrainingRunStatus.SUCCESS;
         String message = retainActive
                 ? "新模型未达到启用条件，已保留当前生效批次"
-                : "三种预测模型已完成训练并生效";
+                : "四种预测模型已完成训练并生效";
         return new TrainingRunResult(
                 status,
                 batchVersion,

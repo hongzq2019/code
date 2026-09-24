@@ -52,7 +52,7 @@ public class PredictionModelStore {
 
     private static void validateCompleteBatch(List<ModelSnapshot> snapshots) {
         if (!isCompleteConsistentBatch(snapshots)) {
-            throw new IllegalArgumentException("必须提供同一批次、同一训练水位的三种模型");
+            throw new IllegalArgumentException("必须提供同一批次、同一训练水位的四种模型");
         }
     }
 
