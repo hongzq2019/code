@@ -16,6 +16,8 @@ import com.dlt.predictor.prediction.model.TrainingRunStatus;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.server.ResponseStatusException;
 import org.springframework.validation.annotation.Validated;
@@ -36,6 +38,8 @@ import org.springframework.web.bind.annotation.RestController;
 @RequestMapping("/api/v1/admin")
 @Validated
 public class AdminController {
+
+    private static final Logger LOGGER = LoggerFactory.getLogger(AdminController.class);
 
     private final AuthService authService;
     private final DrawStore drawStore;
@@ -84,11 +88,33 @@ public class AdminController {
     @PostMapping("/dlt/sync")
     ApiResponse<SyncResponse> sync(
             @RequestParam(required = false) @Min(1) @Max(100) Integer pageCount) {
-        DltCrawlerResult result = pageCount == null
-                ? dltCrawlerService.importRecentDraws()
-                : dltCrawlerService.importRecentDraws(pageCount);
-        return ApiResponse.ok(new SyncResponse(
-                result.result(), result.fetchedCount(), result.insertedCount(), result.message()));
+        long startedAt = System.nanoTime();
+        String requestedPageCount = pageCount == null ? "default" : pageCount.toString();
+        LOGGER.info("手动同步开奖开始: pageCount={}", requestedPageCount);
+        try {
+            DltCrawlerResult result = pageCount == null
+                    ? dltCrawlerService.importRecentDraws()
+                    : dltCrawlerService.importRecentDraws(pageCount);
+            long durationMs = elapsedMillis(startedAt);
+            if ("SUCCESS".equals(result.result())) {
+                LOGGER.info(
+                        "手动同步开奖完成: status={}, pageCount={}, fetched={}, changed={}, durationMs={}, message={}",
+                        result.result(), requestedPageCount, result.fetchedCount(), result.insertedCount(),
+                        durationMs, result.message());
+            } else {
+                LOGGER.warn(
+                        "手动同步开奖完成: status={}, pageCount={}, fetched={}, changed={}, durationMs={}, message={}",
+                        result.result(), requestedPageCount, result.fetchedCount(), result.insertedCount(),
+                        durationMs, result.message());
+            }
+            return ApiResponse.ok(new SyncResponse(
+                    result.result(), result.fetchedCount(), result.insertedCount(), result.message()));
+        } catch (RuntimeException exception) {
+            LOGGER.error(
+                    "手动同步开奖异常: pageCount={}, durationMs={}",
+                    requestedPageCount, elapsedMillis(startedAt), exception);
+            throw exception;
+        }
     }
 
     /**
@@ -127,10 +153,37 @@ public class AdminController {
      */
     @PostMapping("/dlt/model/retrain")
     ApiResponse<ModelTrainingResponse> retrainModel() {
-        TrainingRunResult result = modelTrainingCoordinator.retrainNow();
-        if (result.status() == TrainingRunStatus.FAILED) {
-            throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, result.message());
+        long startedAt = System.nanoTime();
+        LOGGER.info("手动重训模型开始");
+        try {
+            TrainingRunResult result = modelTrainingCoordinator.retrainNow();
+            long durationMs = elapsedMillis(startedAt);
+            if (result.status() == TrainingRunStatus.SUCCESS) {
+                LOGGER.info(
+                        "手动重训模型完成: status={}, batchVersion={}, modelCount={}, durationMs={}, message={}",
+                        result.status(), result.batchVersion(), result.models().size(), durationMs, result.message());
+            } else if (result.status() == TrainingRunStatus.FAILED) {
+                LOGGER.error(
+                        "手动重训模型完成: status={}, batchVersion={}, modelCount={}, durationMs={}, message={}",
+                        result.status(), result.batchVersion(), result.models().size(), durationMs, result.message());
+            } else {
+                LOGGER.warn(
+                        "手动重训模型完成: status={}, batchVersion={}, modelCount={}, durationMs={}, message={}",
+                        result.status(), result.batchVersion(), result.models().size(), durationMs, result.message());
+            }
+            if (result.status() == TrainingRunStatus.FAILED) {
+                throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, result.message());
+            }
+            return ApiResponse.ok(ModelTrainingResponse.from(result));
+        } catch (ResponseStatusException exception) {
+            throw exception;
+        } catch (RuntimeException exception) {
+            LOGGER.error("手动重训模型异常: durationMs={}", elapsedMillis(startedAt), exception);
+            throw exception;
         }
-        return ApiResponse.ok(ModelTrainingResponse.from(result));
+    }
+
+    private static long elapsedMillis(long startedAt) {
+        return (System.nanoTime() - startedAt) / 1_000_000;
     }
 }
