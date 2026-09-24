@@ -1,5 +1,5 @@
 <script setup lang="ts">
-/** 预测页：一次加载三种模型结果，通过下拉框只展示用户选中的一组号码。 */
+/** 预测页：一次加载四种模型结果，通过下拉框只展示用户选中的一组号码。 */
 import { computed, ref } from 'vue'
 import NumberBalls from '../components/NumberBalls.vue'
 import PageState from '../components/PageState.vue'
@@ -21,6 +21,7 @@ const modelOptions: Array<{ value: PredictionModelType; label: string }> = [
   { value: 'DYNAMIC_ENSEMBLE', label: '动态集成（主推荐）' },
   { value: 'LOGISTIC_REGRESSION', label: '逻辑回归' },
   { value: 'VECTOR_TRANSITION', label: '向量转移' },
+  { value: 'DECAYED_FREQUENCY', label: '历史衰减概率' },
 ]
 
 const selectedPrediction = computed<ModelPrediction | undefined>(() =>

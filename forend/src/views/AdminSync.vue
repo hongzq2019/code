@@ -1,5 +1,5 @@
 <script setup lang="ts">
-/** 管理员数据同步页：独立控制官方采集和三模型手动重训。 */
+/** 管理员数据同步页：独立控制官方采集和四模型手动重训。 */
 import { ref } from 'vue'
 import { retrainModels, runDltSync } from '../api/admin'
 import { toUserMessage } from '../api/client'
@@ -17,6 +17,7 @@ const modelNames = {
   LOGISTIC_REGRESSION: '逻辑回归',
   VECTOR_TRANSITION: '向量转移',
   DYNAMIC_ENSEMBLE: '动态集成',
+  DECAYED_FREQUENCY: '历史衰减概率',
 } as const
 
 /** 按管理员指定页数执行一次采集与向量同步。 */
