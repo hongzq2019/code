@@ -27,6 +27,9 @@ export function unwrap<T>(response: { data: ApiEnvelope<T> }): T {
 export function toUserMessage(error: unknown, fallback = '请求失败，请稍后重试'): string {
   if (axios.isAxiosError(error)) {
     const axiosError = error as AxiosError<ApiErrorPayload>
+    if (axiosError.code === 'ECONNABORTED' || axiosError.code === 'ETIMEDOUT') {
+      return '请求等待超时，后台任务可能仍在执行，请稍后刷新数据'
+    }
     return axiosError.response?.data?.message ?? fallback
   }
   return fallback

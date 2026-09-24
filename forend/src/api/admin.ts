@@ -10,6 +10,9 @@ import type {
   TrainingRunResult,
 } from '../types/admin'
 
+/** 官方开奖多页抓取与向量同步允许的最长等待时间。 */
+const MANUAL_SYNC_TIMEOUT_MS = 10 * 60 * 1000
+
 /** 按页获取等待管理员审批的注册账户。 */
 export async function listPendingUsers(params: PendingUserQuery): Promise<PendingUserPage> {
   const response = await client.get<ApiEnvelope<PendingUserPage>>('/api/v1/admin/users', { params })
@@ -29,6 +32,7 @@ export async function approveUser(username: string, request: ApprovalRequest): P
 export async function runDltSync(pageCount = 30): Promise<SyncResult> {
   const response = await client.post<ApiEnvelope<SyncResult>>('/api/v1/admin/dlt/sync', null, {
     params: { pageCount },
+    timeout: MANUAL_SYNC_TIMEOUT_MS,
   })
   return unwrap(response)
 }
