@@ -13,6 +13,7 @@ import java.time.Instant;
 import java.util.EnumMap;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.IntStream;
 import org.springframework.stereotype.Service;
 
 /**
@@ -58,13 +59,17 @@ public class NextDrawPredictionService {
         ModelSnapshot logisticSnapshot = models.get(PredictionModelType.LOGISTIC_REGRESSION);
         ModelSnapshot vectorSnapshot = models.get(PredictionModelType.VECTOR_TRANSITION);
         ModelSnapshot ensembleSnapshot = models.get(PredictionModelType.DYNAMIC_ENSEMBLE);
+        ModelSnapshot decayedSnapshot = models.get(PredictionModelType.DECAYED_FREQUENCY);
         LogisticModelArtifact logisticArtifact = decode(
                 logisticSnapshot.configJson(), LogisticModelArtifact.class, "逻辑回归");
         VectorTransitionArtifact vectorArtifact = decode(
                 vectorSnapshot.configJson(), VectorTransitionArtifact.class, "向量转移");
         EnsembleArtifact ensembleArtifact = decode(
                 ensembleSnapshot.configJson(), EnsembleArtifact.class, "动态集成");
+        DecayedFrequencyArtifact decayedArtifact = decode(
+                decayedSnapshot.configJson(), DecayedFrequencyArtifact.class, "历史衰减概率");
         validateArtifacts(logisticArtifact, vectorArtifact, ensembleArtifact, logisticSnapshot, vectorSnapshot);
+        validateDecayedFrequency(decayedArtifact);
 
         NextDrawModelTrainer logisticTrainer = new NextDrawModelTrainer();
         CandidateScores logisticFront = logisticTrainer.scoreLatest(
@@ -80,6 +85,8 @@ public class NextDrawPredictionService {
                 logisticFront, vectorFront, ensembleArtifact.frontLogisticWeight());
         CandidateScores ensembleBack = ensembleTrainer.combine(
                 logisticBack, vectorBack, ensembleArtifact.backLogisticWeight());
+        CandidateScores decayedFront = new CandidateScores(decayedArtifact.frontProbabilities());
+        CandidateScores decayedBack = new CandidateScores(decayedArtifact.backProbabilities());
 
         EnsembleWeightsResponse weights = new EnsembleWeightsResponse(
                 ensembleArtifact.frontLogisticWeight(), ensembleArtifact.frontVectorWeight(),
@@ -92,7 +99,8 @@ public class NextDrawPredictionService {
                 List.of(
                         response(logisticSnapshot, "逻辑回归", logisticFront, logisticBack, null),
                         response(vectorSnapshot, "向量转移", vectorFront, vectorBack, null),
-                        response(ensembleSnapshot, "动态集成", ensembleFront, ensembleBack, weights)));
+                        response(ensembleSnapshot, "动态集成", ensembleFront, ensembleBack, weights),
+                        response(decayedSnapshot, "历史衰减概率", decayedFront, decayedBack, null)));
     }
 
     private static ModelPredictionResponse response(
@@ -131,6 +139,25 @@ public class NextDrawPredictionService {
                 || !ensemble.vectorModelVersion().equals(vectorSnapshot.modelVersion())) {
             throw new ModelUnavailableException("动态集成模型引用的基础模型版本不一致");
         }
+    }
+
+    private static void validateDecayedFrequency(DecayedFrequencyArtifact artifact) {
+        if (artifact.artifactVersion() != 1
+                || artifact.halfLifeDraws() != DecayedFrequencyModelTrainer.HALF_LIFE_DRAWS
+                || !isCompleteProbabilityMap(artifact.frontProbabilities(), NumberZone.FRONT.candidateCount())
+                || !isCompleteProbabilityMap(artifact.backProbabilities(), NumberZone.BACK.candidateCount())) {
+            throw new ModelUnavailableException("历史衰减概率模型参数已损坏，请重新训练");
+        }
+    }
+
+    private static boolean isCompleteProbabilityMap(Map<Integer, Double> values, int count) {
+        return values != null
+                && values.size() == count
+                && IntStream.rangeClosed(1, count).allMatch(values::containsKey)
+                && values.values().stream().allMatch(value -> value != null
+                        && Double.isFinite(value)
+                        && value >= 0.0
+                        && value <= 1.0);
     }
 
     private <T> T decode(String json, Class<T> type, String modelName) {
