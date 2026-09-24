@@ -70,7 +70,7 @@ async function retrain(): Promise<void> {
 
     <el-card>
       <template #header>预测模型训练</template>
-      <p>基于当前 PostgreSQL 历史数据回测三种模型，并按评估结果切换生效批次。</p>
+      <p>基于当前 PostgreSQL 历史数据回测四种模型，并按评估结果切换生效批次。</p>
       <el-button type="success" :loading="training" @click="retrain">手动重训模型</el-button>
       <el-alert
         v-if="trainingResult"

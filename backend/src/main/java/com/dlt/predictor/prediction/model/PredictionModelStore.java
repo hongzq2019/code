@@ -8,7 +8,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 /**
  *
- * 保存模型版本，并以单个事务切换完整的三模型生效批次。
+ * 保存模型版本，并以单个事务切换完整的四模型生效批次。
  *
  */
 @Service

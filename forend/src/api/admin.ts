@@ -33,7 +33,7 @@ export async function runDltSync(pageCount = 30): Promise<SyncResult> {
   return unwrap(response)
 }
 
-/** 立即执行三种预测模型的完整训练和批次切换。 */
+/** 立即执行四种预测模型的完整训练和批次切换。 */
 export async function retrainModels(): Promise<TrainingRunResult> {
   const response = await client.post<ApiEnvelope<TrainingRunResult>>(
     '/api/v1/admin/dlt/model/retrain',

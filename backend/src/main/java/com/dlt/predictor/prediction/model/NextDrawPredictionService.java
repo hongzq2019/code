@@ -18,7 +18,7 @@ import org.springframework.stereotype.Service;
 
 /**
  *
- * 使用同一生效批次的逻辑回归、向量转移和动态集成模型预测下一期开奖。
+ * 使用同一生效批次的四种模型预测下一期开奖。
  *
  */
 @Service

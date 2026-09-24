@@ -46,7 +46,7 @@ export interface ModelPrediction {
   backBeatsBaseline: boolean
 }
 
-/** 同一生效批次生成的三模型下一期开奖预测。 */
+/** 同一生效批次生成的四模型下一期开奖预测。 */
 export interface PredictionResult {
   generatedAt: string
   basedOnIssueNo: string
