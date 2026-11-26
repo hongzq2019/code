@@ -15,45 +15,48 @@ import org.junit.jupiter.api.Test;
 class PredictionModelStoreTest {
 
     @Test
-    void rejectsThreeModelActivationBeforeRepositoryChanges() {
+    void rejectsLegacyFourModelActivationBeforeRepositoryChanges() {
         PredictionModelRepository repository = mock(PredictionModelRepository.class);
         PredictionModelStore store = new PredictionModelStore(repository);
 
         assertThatThrownBy(() -> store.activateBatch(List.of(
                 snapshot(PredictionModelType.LOGISTIC_REGRESSION, "batch-a", 99L),
                 snapshot(PredictionModelType.VECTOR_TRANSITION, "batch-a", 99L),
-                snapshot(PredictionModelType.DYNAMIC_ENSEMBLE, "batch-a", 99L))))
+                snapshot(PredictionModelType.DYNAMIC_ENSEMBLE, "batch-a", 99L),
+                snapshot(PredictionModelType.DECAYED_FREQUENCY, "batch-a", 99L))))
                 .isInstanceOf(IllegalArgumentException.class)
-                .hasMessageContaining("四种模型");
+                .hasMessageContaining("五种模型");
 
         verify(repository, never()).deactivateAllActive();
     }
 
     @Test
-    void treatsLegacyThreeModelActiveBatchAsIncomplete() {
+    void treatsLegacyFourModelActiveBatchAsIncomplete() {
         PredictionModelRepository repository = mock(PredictionModelRepository.class);
         when(repository.findByStatusOrderByModelTypeAsc(PredictionModelStatus.ACTIVE)).thenReturn(List.of(
                 PredictionModelEntity.from(snapshot(PredictionModelType.LOGISTIC_REGRESSION, "batch-a", 99L)),
                 PredictionModelEntity.from(snapshot(PredictionModelType.VECTOR_TRANSITION, "batch-a", 99L)),
-                PredictionModelEntity.from(snapshot(PredictionModelType.DYNAMIC_ENSEMBLE, "batch-a", 99L))));
+                PredictionModelEntity.from(snapshot(PredictionModelType.DYNAMIC_ENSEMBLE, "batch-a", 99L)),
+                PredictionModelEntity.from(snapshot(PredictionModelType.DECAYED_FREQUENCY, "batch-a", 99L))));
         PredictionModelStore store = new PredictionModelStore(repository);
 
         assertThat(store.activeBatch()).isEmpty();
     }
 
     @Test
-    void returnsCompleteFourModelBatchOnlyWhenBatchAndWaterlineMatch() {
+    void returnsCompleteFiveModelBatchOnlyWhenBatchAndWaterlineMatch() {
         PredictionModelRepository repository = mock(PredictionModelRepository.class);
         List<PredictionModelEntity> entities = List.of(
                 PredictionModelEntity.from(snapshot(PredictionModelType.LOGISTIC_REGRESSION, "batch-a", 99L)),
                 PredictionModelEntity.from(snapshot(PredictionModelType.VECTOR_TRANSITION, "batch-a", 99L)),
                 PredictionModelEntity.from(snapshot(PredictionModelType.DYNAMIC_ENSEMBLE, "batch-a", 99L)),
-                PredictionModelEntity.from(snapshot(PredictionModelType.DECAYED_FREQUENCY, "batch-a", 99L)));
+                PredictionModelEntity.from(snapshot(PredictionModelType.DECAYED_FREQUENCY, "batch-a", 99L)),
+                PredictionModelEntity.from(snapshot(PredictionModelType.FREQUENCY_SIMILARITY, "batch-a", 99L)));
         when(repository.findByStatusOrderByModelTypeAsc(PredictionModelStatus.ACTIVE)).thenReturn(entities);
         PredictionModelStore store = new PredictionModelStore(repository);
 
         assertThat(store.activeBatch()).isPresent();
-        assertThat(store.activeBatch().orElseThrow()).hasSize(4);
+        assertThat(store.activeBatch().orElseThrow()).hasSize(5);
     }
 
     private static ModelSnapshot snapshot(PredictionModelType type, String batch, long waterline) {

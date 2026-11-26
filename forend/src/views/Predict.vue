@@ -1,5 +1,5 @@
 <script setup lang="ts">
-/** 预测页：一次加载四种模型结果，通过下拉框只展示用户选中的一组号码。 */
+/** 预测页：一次加载五种模型结果，通过下拉框只展示用户选中的一组号码。 */
 import { computed, ref } from 'vue'
 import NumberBalls from '../components/NumberBalls.vue'
 import PageState from '../components/PageState.vue'
@@ -18,10 +18,11 @@ const loading = ref(false)
 const errorMessage = ref('')
 
 const modelOptions: Array<{ value: PredictionModelType; label: string }> = [
-  { value: 'DYNAMIC_ENSEMBLE', label: '动态集成（主推荐）' },
+  { value: 'DYNAMIC_ENSEMBLE', label: '动态集成' },
   { value: 'LOGISTIC_REGRESSION', label: '逻辑回归' },
   { value: 'VECTOR_TRANSITION', label: '向量转移' },
-  { value: 'DECAYED_FREQUENCY', label: '历史衰减概率' },
+  { value: 'DECAYED_FREQUENCY', label: '历史正态分布' },
+  { value: 'FREQUENCY_SIMILARITY', label: '高频相似融合' },
 ]
 
 const selectedPrediction = computed<ModelPrediction | undefined>(() =>
@@ -74,8 +75,8 @@ async function submit(): Promise<void> {
         <template #header>
           <div class="prediction-card__header">
             <span>{{ selectedPrediction.name }}</span>
-            <el-tag v-if="selectedPrediction.type === 'DYNAMIC_ENSEMBLE'" type="success">
-              主推荐
+            <el-tag v-if="selectedPrediction.frontBeatsBaseline && selectedPrediction.backBeatsBaseline" type="success">
+              回测平均命中高于随机
             </el-tag>
           </div>
         </template>
@@ -87,14 +88,25 @@ async function submit(): Promise<void> {
 
         <el-descriptions :column="2" border class="prediction-metadata">
           <el-descriptions-item label="模型版本">{{ selectedPrediction.modelVersion }}</el-descriptions-item>
-          <el-descriptions-item label="依据期号">{{ result.basedOnIssueNo }}</el-descriptions-item>
-          <el-descriptions-item label="训练水位">{{ selectedPrediction.trainedThroughIssueNo }}</el-descriptions-item>
-          <el-descriptions-item label="样本期数">{{ selectedPrediction.drawCount }}</el-descriptions-item>
+          <el-descriptions-item label="历史数据" :span="2">
+            数据截至第 {{ selectedPrediction.trainedThroughIssueNo }} 期（共 {{ selectedPrediction.drawCount }} 期历史）
+          </el-descriptions-item>
           <el-descriptions-item label="前区 LogLoss">{{ selectedPrediction.metrics.frontLogLoss.toFixed(4) }}</el-descriptions-item>
           <el-descriptions-item label="后区 LogLoss">{{ selectedPrediction.metrics.backLogLoss.toFixed(4) }}</el-descriptions-item>
-          <el-descriptions-item label="前区平均命中">{{ selectedPrediction.metrics.frontMeanHits.toFixed(2) }}</el-descriptions-item>
-          <el-descriptions-item label="后区平均命中">{{ selectedPrediction.metrics.backMeanHits.toFixed(2) }}</el-descriptions-item>
+          <el-descriptions-item label="前区平均命中">
+            {{ selectedPrediction.metrics.frontMeanHits.toFixed(2) }} / 随机基线 {{ selectedPrediction.metrics.frontBaselineHits.toFixed(2) }}
+          </el-descriptions-item>
+          <el-descriptions-item label="后区平均命中">
+            {{ selectedPrediction.metrics.backMeanHits.toFixed(2) }} / 随机基线 {{ selectedPrediction.metrics.backBaselineHits.toFixed(2) }}
+          </el-descriptions-item>
         </el-descriptions>
+
+        <el-alert
+          v-if="!selectedPrediction.frontBeatsBaseline || !selectedPrediction.backBeatsBaseline"
+          type="info"
+          :closable="false"
+          title="该模型的前后区平均命中尚未同时超过随机基线；概率误差单独展示，历史结果不代表未来表现。"
+        />
 
         <div v-if="selectedPrediction.ensembleWeights" class="ensemble-weights">
           <span>前区：逻辑回归 {{ percentage(selectedPrediction.ensembleWeights.frontLogisticWeight) }} / 向量转移 {{ percentage(selectedPrediction.ensembleWeights.frontVectorWeight) }}</span>

@@ -6,12 +6,10 @@ import java.util.List;
 
 /**
  *
- * 使用无未来数据的滚动窗口回测历史衰减概率模型。
+ * 使用全部已知历史逐位置拟合正态分布，滚动回测不读取目标期及未来开奖。
  *
  */
 public class DecayedFrequencyModelTrainer {
-
-    public static final int HALF_LIFE_DRAWS = 200;
 
     private final DecayedFrequencyCalculator calculator;
 
@@ -30,22 +28,24 @@ public class DecayedFrequencyModelTrainer {
                 List<Draw> history = draws.subList(0, target);
                 periods.add(new RollingPredictionSet.PeriodPrediction(
                         target,
-                        calculator.score(history, NumberZone.FRONT, HALF_LIFE_DRAWS),
-                        calculator.score(history, NumberZone.BACK, HALF_LIFE_DRAWS)));
+                        calculator.score(history, NumberZone.FRONT),
+                        calculator.score(history, NumberZone.BACK)));
             }
         }
         if (periods.isEmpty()) {
-            throw new ModelUnavailableException("没有可用于回测的历史衰减概率期次");
+            throw new ModelUnavailableException("没有可用于回测的历史正态分布期次");
         }
 
         RollingPredictionSet validation = new RollingPredictionSet(List.copyOf(periods));
-        CandidateScores finalFront = calculator.score(draws, NumberZone.FRONT, HALF_LIFE_DRAWS);
-        CandidateScores finalBack = calculator.score(draws, NumberZone.BACK, HALF_LIFE_DRAWS);
+        GaussianZonePrediction finalFront = calculator.fit(draws, NumberZone.FRONT);
+        GaussianZonePrediction finalBack = calculator.fit(draws, NumberZone.BACK);
         DecayedFrequencyArtifact artifact = new DecayedFrequencyArtifact(
-                1,
-                HALF_LIFE_DRAWS,
-                finalFront.values(),
-                finalBack.values());
+                2,
+                draws.size(),
+                finalFront.distributions(),
+                finalBack.distributions(),
+                finalFront.scores().values(),
+                finalBack.scores().values());
         return new TrainedDecayedFrequencyModel(
                 artifact,
                 validation,

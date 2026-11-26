@@ -15,12 +15,14 @@ public class LogisticRegressionTrainer {
         }
         int featureCount = samples.getFirst().features().length;
         double[] weights = new double[featureCount + 1];
+        double prevalence = Math.max(EPSILON, Math.min(1 - EPSILON,
+                samples.stream().mapToInt(BinarySample::label).average().orElseThrow()));
+        weights[0] = Math.log(prevalence / (1 - prevalence));
         for (int iteration = 0; iteration < ITERATIONS; iteration++) {
             double[] gradient = new double[weights.length];
             for (BinarySample sample : samples) {
                 double probability = predict(weights, sample.features());
-                double classWeight = sample.label() == 1 ? zone.positiveWeight() : 1.0;
-                double error = (probability - sample.label()) * classWeight;
+                double error = probability - sample.label();
                 gradient[0] += error;
                 for (int index = 0; index < featureCount; index++) {
                     gradient[index + 1] += error * sample.features()[index];

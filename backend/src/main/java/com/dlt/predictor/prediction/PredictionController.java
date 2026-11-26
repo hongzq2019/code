@@ -11,7 +11,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 /**
  *
- * 返回同一生效批次的三种下一期开奖模型结果。
+ * 返回同一生效批次的五种下一期开奖模型结果。
  *
  */
 @RestController

@@ -130,7 +130,13 @@ CREATE TABLE IF NOT EXISTS prediction_model (
     back_beats_baseline BOOLEAN NOT NULL,
     CONSTRAINT uq_prediction_model_version UNIQUE (model_type, model_version),
     CONSTRAINT ck_prediction_model_type CHECK (
-        model_type IN ('LOGISTIC_REGRESSION', 'VECTOR_TRANSITION', 'DYNAMIC_ENSEMBLE', 'DECAYED_FREQUENCY')
+        model_type IN (
+            'LOGISTIC_REGRESSION',
+            'VECTOR_TRANSITION',
+            'DYNAMIC_ENSEMBLE',
+            'DECAYED_FREQUENCY',
+            'FREQUENCY_SIMILARITY'
+        )
     ),
     CONSTRAINT ck_prediction_model_status CHECK (status IN ('ACTIVE', 'INACTIVE'))
 );

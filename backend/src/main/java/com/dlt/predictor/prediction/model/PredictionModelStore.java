@@ -8,7 +8,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 /**
  *
- * 保存模型版本，并以单个事务切换完整的四模型生效批次。
+ * 保存模型版本，并以单个事务切换完整的五模型生效批次。
  *
  */
 @Service
@@ -52,7 +52,7 @@ public class PredictionModelStore {
 
     private static void validateCompleteBatch(List<ModelSnapshot> snapshots) {
         if (!isCompleteConsistentBatch(snapshots)) {
-            throw new IllegalArgumentException("必须提供同一批次、同一训练水位的四种模型");
+            throw new IllegalArgumentException("必须提供同一批次、同一训练水位的五种模型");
         }
     }
 

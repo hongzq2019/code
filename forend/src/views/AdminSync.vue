@@ -1,5 +1,5 @@
 <script setup lang="ts">
-/** 管理员数据同步页：独立控制官方采集和四模型手动重训。 */
+/** 管理员数据同步页：独立控制官方采集和五模型手动重训。 */
 import { ref } from 'vue'
 import { retrainModels, runDltSync } from '../api/admin'
 import { toUserMessage } from '../api/client'
@@ -17,8 +17,19 @@ const modelNames = {
   LOGISTIC_REGRESSION: '逻辑回归',
   VECTOR_TRANSITION: '向量转移',
   DYNAMIC_ENSEMBLE: '动态集成',
-  DECAYED_FREQUENCY: '历史衰减概率',
+  DECAYED_FREQUENCY: '历史正态分布',
+  FREQUENCY_SIMILARITY: '高频相似融合',
 } as const
+
+function windowLabel(window: number): string {
+  return window === 0 ? '全历史' : `${window} 期`
+}
+
+function rejectionLabel(reason: string): string {
+  let label = reason
+  for (const [type, name] of Object.entries(modelNames)) label = label.split(type).join(name)
+  return label
+}
 
 /** 按管理员指定页数执行一次采集与向量同步。 */
 async function sync(): Promise<void> {
@@ -70,8 +81,9 @@ async function retrain(): Promise<void> {
 
     <el-card>
       <template #header>预测模型训练</template>
-      <p>基于当前 PostgreSQL 历史数据回测四种模型，并按评估结果切换生效批次。</p>
-      <el-button type="success" :loading="training" @click="retrain">手动重训模型</el-button>
+      <p>自动比较 29、60、120 期及全历史窗口，再用未参与选参的尾部期数验收。历史正态分布始终使用全部已知历史。</p>
+      <p>五模型前后区平均命中均超过随机基线，且不低于全历史控制模型并有改善，才整批启用；历史结果不保证未来表现。</p>
+      <el-button type="success" :loading="training" @click="retrain">自动优化并独立验收</el-button>
       <el-alert
         v-if="trainingResult"
         :type="trainingResult.status === 'SUCCESS' ? 'success' : 'warning'"
@@ -80,6 +92,22 @@ async function retrain(): Promise<void> {
       />
       <el-alert v-if="trainingError" type="error" :closable="false" :title="trainingError" />
 
+      <el-descriptions v-if="trainingResult?.optimization" :column="2" border>
+        <el-descriptions-item label="已评估窗口">{{ trainingResult.optimization.evaluatedWindows.map(windowLabel).join('、') }}</el-descriptions-item>
+        <el-descriptions-item label="开发段选中窗口">{{ windowLabel(trainingResult.optimization.selectedWindow) }}</el-descriptions-item>
+        <el-descriptions-item label="开发数据 / 调参目标">{{ trainingResult.optimization.developmentDrawCount }} / {{ trainingResult.optimization.tuningPeriodCount }} 期</el-descriptions-item>
+        <el-descriptions-item label="独立验收段">{{ trainingResult.optimization.holdoutFromIssueNo }} 至 {{ trainingResult.optimization.holdoutThroughIssueNo }}（{{ trainingResult.optimization.holdoutPeriodCount }} 期）</el-descriptions-item>
+        <el-descriptions-item label="向量 / 动态平均重合">前区 {{ trainingResult.optimization.frontVectorEnsembleOverlap.toFixed(2) }} 个，后区 {{ trainingResult.optimization.backVectorEnsembleOverlap.toFixed(2) }} 个</el-descriptions-item>
+        <el-descriptions-item label="停止原因">{{ trainingResult.optimization.stopReason }}</el-descriptions-item>
+      </el-descriptions>
+      <el-alert
+        v-for="reason in trainingResult?.optimization?.rejectionReasons ?? []"
+        :key="reason"
+        type="warning"
+        :closable="false"
+        :title="rejectionLabel(reason)"
+      />
+
       <el-table v-if="trainingResult?.models.length" :data="trainingResult.models">
         <el-table-column label="模型" min-width="110">
           <template #default="scope">{{ modelNames[scope.row.type as keyof typeof modelNames] }}</template>
@@ -87,6 +115,18 @@ async function retrain(): Promise<void> {
         <el-table-column prop="trainedThroughIssueNo" label="训练水位" min-width="110" />
         <el-table-column prop="drawCount" label="开奖期数" width="90" />
         <el-table-column prop="sampleCount" label="样本数" width="90" />
+        <el-table-column label="前区平均命中 / 随机" min-width="160">
+          <template #default="scope">{{ scope.row.metrics.frontMeanHits.toFixed(3) }} / {{ scope.row.metrics.frontBaselineHits.toFixed(3) }}</template>
+        </el-table-column>
+        <el-table-column label="后区平均命中 / 随机" min-width="160">
+          <template #default="scope">{{ scope.row.metrics.backMeanHits.toFixed(3) }} / {{ scope.row.metrics.backBaselineHits.toFixed(3) }}</template>
+        </el-table-column>
+        <el-table-column v-if="trainingResult?.optimization" label="全历史控制：前 / 后" min-width="165">
+          <template #default="scope">
+            {{ trainingResult.optimization.controlMetrics[scope.row.type as keyof typeof modelNames]?.frontMeanHits.toFixed(3) }} /
+            {{ trainingResult.optimization.controlMetrics[scope.row.type as keyof typeof modelNames]?.backMeanHits.toFixed(3) }}
+          </template>
+        </el-table-column>
         <el-table-column label="前区 LogLoss" min-width="120">
           <template #default="scope">{{ scope.row.metrics.frontLogLoss.toFixed(4) }}</template>
         </el-table-column>

@@ -19,6 +19,8 @@ export type TrainingRunStatus =
   | 'STARTED'
   | 'SUCCESS'
   | 'RETAINED_ACTIVE_MODEL'
+  | 'NO_ELIGIBLE_MODEL'
+  | 'HISTORY_CHANGED'
   | 'INSUFFICIENT_DATA'
   | 'TRAINING_IN_PROGRESS'
   | 'FAILED'
@@ -40,6 +42,22 @@ export interface TrainingRunResult {
   batchVersion: string | null
   message: string
   models: ModelTrainingResult[]
+  optimization?: OptimizationSummary | null
+}
+
+export interface OptimizationSummary {
+  evaluatedWindows: number[]
+  selectedWindow: number
+  developmentDrawCount: number
+  tuningPeriodCount: number
+  holdoutPeriodCount: number
+  holdoutFromIssueNo: string
+  holdoutThroughIssueNo: string
+  controlMetrics: Record<PredictionModelType, ModelMetrics>
+  rejectionReasons: string[]
+  stopReason: string
+  frontVectorEnsembleOverlap: number
+  backVectorEnsembleOverlap: number
 }
 
 /** 手工录入一期大乐透开奖数据的请求体。 */

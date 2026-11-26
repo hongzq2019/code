@@ -28,20 +28,22 @@ class DecayedFrequencyModelTrainerTest {
         RollingPredictionSet.PeriodPrediction firstPrediction = first.validationPredictions().periods().getFirst();
         RollingPredictionSet.PeriodPrediction secondPrediction = second.validationPredictions().periods().getFirst();
         assertThat(firstPrediction.targetIndex()).isEqualTo(firstTarget);
-        assertThat(secondPrediction.front().values()).isEqualTo(firstPrediction.front().values());
-        assertThat(secondPrediction.back().values()).isEqualTo(firstPrediction.back().values());
+        assertThat(secondPrediction.front()).isEqualTo(firstPrediction.front());
+        assertThat(secondPrediction.back()).isEqualTo(firstPrediction.back());
     }
 
     @Test
-    void productionArtifactContainsAllProbabilitiesAndFixedHalfLife() {
+    void productionArtifactContainsAllHistoryPositionDistributionsAndCandidateProbabilities() {
         List<Draw> history = draws(100);
         List<RollingFold> folds = new RollingFoldBuilder()
                 .build(history.size(), TrainingDatasetBuilder.FEATURE_WINDOW);
 
         TrainedDecayedFrequencyModel result = new DecayedFrequencyModelTrainer().train(history, folds);
 
-        assertThat(result.artifact().artifactVersion()).isEqualTo(1);
-        assertThat(result.artifact().halfLifeDraws()).isEqualTo(200);
+        assertThat(result.artifact().artifactVersion()).isEqualTo(2);
+        assertThat(result.artifact().historyDrawCount()).isEqualTo(100);
+        assertThat(result.artifact().frontDistributions()).hasSize(5);
+        assertThat(result.artifact().backDistributions()).hasSize(2);
         assertThat(result.artifact().frontProbabilities()).hasSize(35);
         assertThat(result.artifact().backProbabilities()).hasSize(12);
         assertThat(result.validationPredictions().periods()).hasSize(32);

@@ -1,11 +1,12 @@
 import type { DltNumbers } from './lottery'
 
-/** 后端支持的四种下一期开奖模型。 */
+/** 后端支持的五种下一期开奖模型。 */
 export type PredictionModelType =
   | 'LOGISTIC_REGRESSION'
   | 'VECTOR_TRANSITION'
   | 'DYNAMIC_ENSEMBLE'
   | 'DECAYED_FREQUENCY'
+  | 'FREQUENCY_SIMILARITY'
 
 /** 滚动验证指标及对应随机基线。 */
 export interface ModelMetrics {
@@ -46,7 +47,7 @@ export interface ModelPrediction {
   backBeatsBaseline: boolean
 }
 
-/** 同一生效批次生成的四模型下一期开奖预测。 */
+/** 同一生效批次生成的五模型下一期开奖预测。 */
 export interface PredictionResult {
   generatedAt: string
   basedOnIssueNo: string

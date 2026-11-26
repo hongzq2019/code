@@ -2,7 +2,7 @@ spring:
   application:
     name: dlt-predictor
   datasource:
-    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://192.168.50.39:5432/dlt}
+    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://127.0.0.1:5432/dlt}
     username: ${SPRING_DATASOURCE_USERNAME:postgres}
     password: ${SPRING_DATASOURCE_PASSWORD:Anjie@2025}
   jpa:

@@ -19,6 +19,16 @@ public final class PredictionMetricsCalculator {
                 .toList();
     }
 
+    public static List<Integer> topNumbers(CandidateScores scores, int count) {
+        if (!scores.selectedNumbers().isEmpty()) {
+            if (scores.selectedNumbers().size() != count) {
+                throw new IllegalArgumentException("显式选号数量与分区要求不一致");
+            }
+            return scores.selectedNumbers();
+        }
+        return topNumbers(scores.values(), count);
+    }
+
     public static double logLoss(Map<Integer, Double> scores, List<Integer> actual, int candidates) {
         double total = 0;
         for (int number = 1; number <= candidates; number++) {
@@ -40,9 +50,9 @@ public final class PredictionMetricsCalculator {
             Draw actual = draws.get(period.targetIndex());
             frontLoss += logLoss(period.front().values(), actual.numbers().front(), NumberZone.FRONT.candidateCount());
             backLoss += logLoss(period.back().values(), actual.numbers().back(), NumberZone.BACK.candidateCount());
-            frontHits += topNumbers(period.front().values(), NumberZone.FRONT.selectionCount()).stream()
+            frontHits += topNumbers(period.front(), NumberZone.FRONT.selectionCount()).stream()
                     .filter(actual.numbers().front()::contains).count();
-            backHits += topNumbers(period.back().values(), NumberZone.BACK.selectionCount()).stream()
+            backHits += topNumbers(period.back(), NumberZone.BACK.selectionCount()).stream()
                     .filter(actual.numbers().back()::contains).count();
         }
         int count = validation.periods().size();
@@ -57,8 +67,8 @@ public final class PredictionMetricsCalculator {
         return new ModelMetrics(
                 frontLoss, backLoss, frontHits, backHits,
                 frontBaselineLoss, backBaselineLoss, frontBaselineHits, backBaselineHits,
-                frontLoss < frontBaselineLoss || frontHits > frontBaselineHits,
-                backLoss < backBaselineLoss || backHits > backBaselineHits);
+                frontHits > frontBaselineHits,
+                backHits > backBaselineHits);
     }
 
     private static double baselineLogLoss(NumberZone zone) {

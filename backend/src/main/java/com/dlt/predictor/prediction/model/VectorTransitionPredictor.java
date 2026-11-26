@@ -1,126 +1,135 @@
 package com.dlt.predictor.prediction.model;
 
 import com.dlt.predictor.lottery.Draw;
-import com.dlt.predictor.lottery.DrawStore;
-import com.dlt.predictor.prediction.FeatureEncoder;
-import com.dlt.predictor.prediction.VectorSearchHit;
-import com.dlt.predictor.prediction.VectorStore;
-import java.util.ArrayList;
-import java.util.Comparator;
-import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 /**
- *
- * 使用相似历史开奖的下一期号码，为候选号码计算转移分数。
- *
+ * 对完整历史做精确向量转移，回测和线上共用同一计算路径。
+ * 归一化多热向量的余弦相似度等于重合号码数 / 分区选号数。
+ * 按重合数分组可完整保留邻居边界同分记录，也避免参数搜索重复扫描历史。
  */
 @Service
 public class VectorTransitionPredictor {
 
-    private final DrawStore drawStore;
-    private final VectorStore vectorStore;
+    public static final double DEFAULT_BANDWIDTH = 0.5;
 
-    public VectorTransitionPredictor() {
-        this.drawStore = null;
-        this.vectorStore = null;
-    }
-
-    @Autowired
-    public VectorTransitionPredictor(DrawStore drawStore, VectorStore vectorStore) {
-        this.drawStore = drawStore;
-        this.vectorStore = vectorStore;
-    }
-
+    // 保留旧的无平滑调用，供既有调用者及基线对比使用；v3 生产使用持久化分区参数。
     public CandidateScores predict(List<Draw> draws, int targetIndex, NumberZone zone, int limit) {
-        if (targetIndex <= 0 || targetIndex >= draws.size()) {
+        return predict(draws, targetIndex, zone, limit, DEFAULT_BANDWIDTH);
+    }
+
+    public CandidateScores predict(
+            List<Draw> draws, int targetIndex, NumberZone zone, int limit, double bandwidth) {
+        return predict(draws, targetIndex, zone, new VectorTransitionParameters(limit, bandwidth, 0));
+    }
+
+    public CandidateScores predict(
+            List<Draw> draws, int targetIndex, NumberZone zone, VectorTransitionParameters parameters) {
+        if (targetIndex < 1 || targetIndex >= draws.size()) {
             throw new IllegalArgumentException("目标下标超出开奖记录范围");
         }
-        Draw query = draws.get(targetIndex - 1);
-        List<Transition> transitions = new ArrayList<>();
-        for (int sourceIndex = 0; sourceIndex + 1 < targetIndex; sourceIndex++) {
-            double similarity = similarity(query, draws.get(sourceIndex), zone);
-            if (similarity > 0) {
-                transitions.add(new Transition(
-                        draws.get(sourceIndex).id(), similarity, draws.get(sourceIndex + 1)));
-            }
+        return prepare(draws, targetIndex, zone, parameters.historyWindow()).score(parameters);
+    }
+
+    public List<CandidateScores> predictCandidates(
+            List<Draw> draws, int targetIndex, NumberZone zone, List<VectorTransitionParameters> parameters) {
+        if (targetIndex < 1 || targetIndex >= draws.size()) {
+            throw new IllegalArgumentException("目标下标超出开奖记录范围");
         }
-        transitions.sort(Comparator.comparingDouble(Transition::similarity).reversed()
-                .thenComparingLong(Transition::sourceDrawId));
-        return aggregate(transitions.stream().limit(limit).toList(), zone);
+        Map<Integer, TransitionGroups> groups = new java.util.HashMap<>();
+        return parameters.stream().map(parameter -> groups.computeIfAbsent(parameter.historyWindow(),
+                window -> prepare(draws, targetIndex, zone, window)).score(parameter)).toList();
     }
 
     public CandidateScores predictLatest(List<Draw> history, NumberZone zone, int limit) {
-        if (drawStore == null || vectorStore == null) {
-            throw new IllegalStateException("生产向量检索依赖尚未注入");
-        }
+        return predictLatest(history, zone, limit, DEFAULT_BANDWIDTH);
+    }
+
+    public CandidateScores predictLatest(List<Draw> history, NumberZone zone, int limit, double bandwidth) {
+        return predictLatest(history, zone, new VectorTransitionParameters(limit, bandwidth, 0));
+    }
+
+    public CandidateScores predictLatest(
+            List<Draw> history, NumberZone zone, VectorTransitionParameters parameters) {
         if (history.size() < 2) {
             throw new ModelUnavailableException("至少需要两期开奖记录才能执行向量转移预测");
         }
-        Draw latest = history.get(history.size() - 1);
-        float[] query = encode(latest, zone);
-        List<VectorSearchHit> hits = zone == NumberZone.FRONT
-                ? vectorStore.searchFront(query, history.size())
-                : vectorStore.searchBack(query, history.size());
+        return prepare(history, history.size(), zone, parameters.historyWindow()).score(parameters);
+    }
 
-        Map<Long, Integer> indices = new HashMap<>();
-        for (int index = 0; index < history.size(); index++) {
-            indices.put(history.get(index).id(), index);
-        }
-        List<Transition> transitions = new ArrayList<>();
-        for (VectorSearchHit hit : hits) {
-            Integer sourceIndex = indices.get(hit.drawId());
-            if (sourceIndex == null || sourceIndex + 1 >= history.size()
-                    || history.get(sourceIndex).id().equals(latest.id()) || hit.similarity() <= 0) {
+    private static TransitionGroups prepare(List<Draw> draws, int historyUntil, NumberZone zone, int historyWindow) {
+        long query = mask(numbers(draws.get(historyUntil - 1), zone));
+        int[] counts = new int[zone.selectionCount() + 1];
+        int[][] successorCounts = new int[zone.selectionCount() + 1][zone.candidateCount() + 1];
+        // source 的后继必须已经开奖；不读取 target 及其后的任何号码。
+        int historyFrom = historyWindow == 0 ? 0 : Math.max(0, historyUntil - historyWindow);
+        for (int source = historyFrom; source + 1 < historyUntil; source++) {
+            int overlap = Long.bitCount(query & mask(numbers(draws.get(source), zone)));
+            if (overlap == 0) {
                 continue;
             }
-            transitions.add(new Transition(hit.drawId(), hit.similarity(), history.get(sourceIndex + 1)));
-            if (transitions.size() == limit) {
-                break;
+            counts[overlap]++;
+            for (int number : numbers(draws.get(source + 1), zone)) {
+                successorCounts[overlap][number]++;
             }
         }
-        return aggregate(transitions, zone);
+        return new TransitionGroups(zone, counts, successorCounts);
     }
 
-    private static CandidateScores aggregate(List<Transition> transitions, NumberZone zone) {
-        double totalSimilarity = transitions.stream().mapToDouble(Transition::similarity).sum();
-        if (totalSimilarity <= 0) {
-            throw new ModelUnavailableException("没有可用的相似历史转移记录");
-        }
-        Map<Integer, Double> scores = new LinkedHashMap<>();
-        for (int number = 1; number <= zone.candidateCount(); number++) {
-            scores.put(number, 0.0);
-        }
-        for (Transition transition : transitions) {
-            List<Integer> successorNumbers = zone == NumberZone.FRONT
-                    ? transition.successor().numbers().front()
-                    : transition.successor().numbers().back();
-            double contribution = transition.similarity() / totalSimilarity;
-            successorNumbers.forEach(number -> scores.merge(number, contribution, Double::sum));
-        }
-        return new CandidateScores(scores);
+    private static List<Integer> numbers(Draw draw, NumberZone zone) {
+        return zone == NumberZone.FRONT ? draw.numbers().front() : draw.numbers().back();
     }
 
-    private static double similarity(Draw left, Draw right, NumberZone zone) {
-        float[] leftVector = encode(left, zone);
-        float[] rightVector = encode(right, zone);
-        double dot = 0;
-        for (int index = 0; index < leftVector.length; index++) {
-            dot += leftVector[index] * rightVector[index];
+    private static long mask(List<Integer> numbers) {
+        long result = 0;
+        for (int number : numbers) {
+            result |= 1L << (number - 1);
         }
-        return dot;
+        return result;
     }
 
-    private static float[] encode(Draw draw, NumberZone zone) {
-        return zone == NumberZone.FRONT
-                ? FeatureEncoder.encodeFront(draw.numbers())
-                : FeatureEncoder.encodeBack(draw.numbers());
+    static double gaussianWeight(double cosineSimilarity, double bandwidth) {
+        if (!Double.isFinite(bandwidth) || bandwidth <= 0) {
+            throw new IllegalArgumentException("高斯核标准差必须为正的有限数值");
+        }
+        if (!Double.isFinite(cosineSimilarity) || cosineSimilarity < 0 || cosineSimilarity > 1) {
+            throw new IllegalArgumentException("余弦相似度必须位于 [0, 1]");
+        }
+        return Math.exp(-(1.0 - cosineSimilarity) / (bandwidth * bandwidth));
     }
 
-    private record Transition(long sourceDrawId, double similarity, Draw successor) {
+    private record TransitionGroups(NumberZone zone, int[] counts, int[][] successorCounts) {
+        CandidateScores score(VectorTransitionParameters parameters) {
+            if (parameters == null || !parameters.isValid()) {
+                throw new IllegalArgumentException("向量转移参数无效");
+            }
+            double[] weightedCounts = new double[zone.candidateCount() + 1];
+            double totalWeight = 0;
+            int neighbors = 0;
+            for (int overlap = zone.selectionCount(); overlap > 0 && neighbors < parameters.neighborCount(); overlap--) {
+                if (counts[overlap] == 0) {
+                    continue;
+                }
+                double weight = gaussianWeight(overlap / (double) zone.selectionCount(), parameters.bandwidth());
+                neighbors += counts[overlap];
+                totalWeight += counts[overlap] * weight;
+                for (int number = 1; number <= zone.candidateCount(); number++) {
+                    weightedCounts[number] += successorCounts[overlap][number] * weight;
+                }
+            }
+            double denominator = totalWeight + parameters.priorStrength();
+            if (denominator <= 0) {
+                throw new ModelUnavailableException("没有可用的相似历史转移记录");
+            }
+            double prior = parameters.priorStrength() * (zone.selectionCount() / (double) zone.candidateCount());
+            Map<Integer, Double> scores = new LinkedHashMap<>();
+            for (int number = 1; number <= zone.candidateCount(); number++) {
+                scores.put(number, (weightedCounts[number] + prior) / denominator);
+            }
+            return new CandidateScores(scores);
+        }
     }
 }

@@ -18,7 +18,7 @@ import org.springframework.stereotype.Service;
 
 /**
  *
- * 使用同一生效批次的四种模型预测下一期开奖。
+ * 使用同一生效批次的五种模型预测下一期开奖。
  *
  */
 @Service
@@ -56,10 +56,17 @@ public class NextDrawPredictionService {
             throw new ModelUnavailableException("开奖记录不足，无法预测下一期");
         }
         Draw latest = history.getLast();
+        if (batch.stream().anyMatch(snapshot -> snapshot.trainedThroughDrawId() != latest.id()
+                || snapshot.drawCount() != history.size()
+                || !latest.issueNo().equals(snapshot.trainedThroughIssueNo())
+                || !latest.drawDate().equals(snapshot.trainedThroughDate()))) {
+            throw new ModelUnavailableException("模型尚未覆盖最新开奖，请先在管理页重训模型");
+        }
         ModelSnapshot logisticSnapshot = models.get(PredictionModelType.LOGISTIC_REGRESSION);
         ModelSnapshot vectorSnapshot = models.get(PredictionModelType.VECTOR_TRANSITION);
         ModelSnapshot ensembleSnapshot = models.get(PredictionModelType.DYNAMIC_ENSEMBLE);
         ModelSnapshot decayedSnapshot = models.get(PredictionModelType.DECAYED_FREQUENCY);
+        ModelSnapshot frequencySimilaritySnapshot = models.get(PredictionModelType.FREQUENCY_SIMILARITY);
         LogisticModelArtifact logisticArtifact = decode(
                 logisticSnapshot.configJson(), LogisticModelArtifact.class, "逻辑回归");
         VectorTransitionArtifact vectorArtifact = decode(
@@ -67,9 +74,17 @@ public class NextDrawPredictionService {
         EnsembleArtifact ensembleArtifact = decode(
                 ensembleSnapshot.configJson(), EnsembleArtifact.class, "动态集成");
         DecayedFrequencyArtifact decayedArtifact = decode(
-                decayedSnapshot.configJson(), DecayedFrequencyArtifact.class, "历史衰减概率");
+                decayedSnapshot.configJson(), DecayedFrequencyArtifact.class, "历史正态分布");
+        FrequencySimilarityArtifact frequencySimilarityArtifact = decode(
+                frequencySimilaritySnapshot.configJson(), FrequencySimilarityArtifact.class, "高频相似融合");
         validateArtifacts(logisticArtifact, vectorArtifact, ensembleArtifact, logisticSnapshot, vectorSnapshot);
-        validateDecayedFrequency(decayedArtifact);
+        if (logisticArtifact.artifactVersion() == 3 && !TrainingHistoryFingerprint.calculate(history)
+                .equals(logisticArtifact.trainingHistoryFingerprint())) {
+            throw new ModelUnavailableException("历史开奖已发生变化，请先重新训练模型");
+        }
+        validateDecayedFrequency(decayedArtifact, decayedSnapshot.drawCount());
+        validateFrequencySimilarity(
+                frequencySimilarityArtifact, decayedSnapshot, vectorSnapshot);
 
         NextDrawModelTrainer logisticTrainer = new NextDrawModelTrainer();
         CandidateScores logisticFront = logisticTrainer.scoreLatest(
@@ -77,16 +92,22 @@ public class NextDrawPredictionService {
         CandidateScores logisticBack = logisticTrainer.scoreLatest(
                 history, NumberZone.BACK, logisticArtifact.backWeights());
         CandidateScores vectorFront = vectorPredictor.predictLatest(
-                history, NumberZone.FRONT, vectorArtifact.neighborCount());
+                history, NumberZone.FRONT, vectorArtifact.frontParameters());
         CandidateScores vectorBack = vectorPredictor.predictLatest(
-                history, NumberZone.BACK, vectorArtifact.neighborCount());
+                history, NumberZone.BACK, vectorArtifact.backParameters());
         DynamicEnsembleTrainer ensembleTrainer = new DynamicEnsembleTrainer();
         CandidateScores ensembleFront = ensembleTrainer.combine(
                 logisticFront, vectorFront, ensembleArtifact.frontLogisticWeight());
         CandidateScores ensembleBack = ensembleTrainer.combine(
                 logisticBack, vectorBack, ensembleArtifact.backLogisticWeight());
-        CandidateScores decayedFront = new CandidateScores(decayedArtifact.frontProbabilities());
-        CandidateScores decayedBack = new CandidateScores(decayedArtifact.backProbabilities());
+        DecayedFrequencyCalculator gaussianCalculator = new DecayedFrequencyCalculator();
+        CandidateScores decayedFront = gaussianCalculator.predict(decayedArtifact.frontDistributions(), NumberZone.FRONT);
+        CandidateScores decayedBack = gaussianCalculator.predict(decayedArtifact.backDistributions(), NumberZone.BACK);
+        FrequencySimilarityTrainer frequencySimilarityTrainer = new FrequencySimilarityTrainer();
+        CandidateScores frequencySimilarityFront = frequencySimilarityTrainer.combine(
+                decayedFront, vectorFront, frequencySimilarityArtifact.frontDecayedFrequencyWeight());
+        CandidateScores frequencySimilarityBack = frequencySimilarityTrainer.combine(
+                decayedBack, vectorBack, frequencySimilarityArtifact.backDecayedFrequencyWeight());
 
         EnsembleWeightsResponse weights = new EnsembleWeightsResponse(
                 ensembleArtifact.frontLogisticWeight(), ensembleArtifact.frontVectorWeight(),
@@ -100,7 +121,9 @@ public class NextDrawPredictionService {
                         response(logisticSnapshot, "逻辑回归", logisticFront, logisticBack, null),
                         response(vectorSnapshot, "向量转移", vectorFront, vectorBack, null),
                         response(ensembleSnapshot, "动态集成", ensembleFront, ensembleBack, weights),
-                        response(decayedSnapshot, "历史衰减概率", decayedFront, decayedBack, null)));
+                        response(decayedSnapshot, "历史正态分布", decayedFront, decayedBack, null),
+                        response(frequencySimilaritySnapshot, "高频相似融合",
+                                frequencySimilarityFront, frequencySimilarityBack, null)));
     }
 
     private static ModelPredictionResponse response(
@@ -110,13 +133,14 @@ public class NextDrawPredictionService {
             CandidateScores back,
             EnsembleWeightsResponse weights) {
         DltNumbers numbers = DltNumbers.of(
-                PredictionMetricsCalculator.topNumbers(front.values(), NumberZone.FRONT.selectionCount()),
-                PredictionMetricsCalculator.topNumbers(back.values(), NumberZone.BACK.selectionCount()));
+                PredictionMetricsCalculator.topNumbers(front, NumberZone.FRONT.selectionCount()),
+                PredictionMetricsCalculator.topNumbers(back, NumberZone.BACK.selectionCount()));
         return new ModelPredictionResponse(
                 snapshot.type(), name, numbers, front.values(), back.values(), snapshot.modelVersion(),
                 snapshot.trainedAt(), snapshot.drawCount(), snapshot.trainedThroughIssueNo(),
                 ModelMetricsResponse.from(snapshot.metrics()), weights,
-                snapshot.metrics().frontBeatsBaseline(), snapshot.metrics().backBeatsBaseline());
+                snapshot.metrics().frontMeanHits() > snapshot.metrics().frontBaselineHits(),
+                snapshot.metrics().backMeanHits() > snapshot.metrics().backBaselineHits());
     }
 
     private static void validateArtifacts(
@@ -125,14 +149,22 @@ public class NextDrawPredictionService {
             EnsembleArtifact ensemble,
             ModelSnapshot logisticSnapshot,
             ModelSnapshot vectorSnapshot) {
-        if (logistic.artifactVersion() != 1 || vector.artifactVersion() != 1 || ensemble.artifactVersion() != 1) {
+        if ((logistic.artifactVersion() != 2 && logistic.artifactVersion() != 3)
+                || vector.artifactVersion() != 3 || ensemble.artifactVersion() != 1) {
             throw new ModelUnavailableException("模型参数版本不受支持，请重新训练");
         }
         if (logistic.featureWindow() != TrainingDatasetBuilder.FEATURE_WINDOW
-                || logistic.frontWeights().length != 7 || logistic.backWeights().length != 7) {
+                || logistic.frontWeights().length != 7 || logistic.backWeights().length != 7
+                || (logistic.trainingWindow() != 0 && (logistic.trainingWindow() < 21
+                || logistic.trainingWindow() > logisticSnapshot.drawCount()))) {
             throw new ModelUnavailableException("逻辑回归模型参数已损坏，请重新训练");
         }
-        if (vector.neighborCount() < 1) {
+        if (!isValidVectorParameters(vector.frontParameters())
+                || !isValidVectorParameters(vector.backParameters())
+                || vector.frontParameters().historyWindow() > vectorSnapshot.drawCount()
+                || vector.backParameters().historyWindow() > vectorSnapshot.drawCount()
+                || !VectorTransitionModelTrainer.VECTOR_VERSION.equals(vector.vectorVersion())
+                || vector.indexedThroughDrawId() != vectorSnapshot.trainedThroughDrawId()) {
             throw new ModelUnavailableException("向量转移模型参数已损坏，请重新训练");
         }
         if (!ensemble.logisticModelVersion().equals(logisticSnapshot.modelVersion())
@@ -141,12 +173,39 @@ public class NextDrawPredictionService {
         }
     }
 
-    private static void validateDecayedFrequency(DecayedFrequencyArtifact artifact) {
-        if (artifact.artifactVersion() != 1
-                || artifact.halfLifeDraws() != DecayedFrequencyModelTrainer.HALF_LIFE_DRAWS
+    private static void validateDecayedFrequency(DecayedFrequencyArtifact artifact, int drawCount) {
+        if (artifact.artifactVersion() != 2 || artifact.historyDrawCount() != drawCount
                 || !isCompleteProbabilityMap(artifact.frontProbabilities(), NumberZone.FRONT.candidateCount())
                 || !isCompleteProbabilityMap(artifact.backProbabilities(), NumberZone.BACK.candidateCount())) {
-            throw new ModelUnavailableException("历史衰减概率模型参数已损坏，请重新训练");
+            throw new ModelUnavailableException("历史正态分布模型参数已损坏或版本过旧，请重新训练");
+        }
+        try {
+            DecayedFrequencyCalculator calculator = new DecayedFrequencyCalculator();
+            Map<Integer, Double> front = calculator.predict(artifact.frontDistributions(), NumberZone.FRONT).values();
+            Map<Integer, Double> back = calculator.predict(artifact.backDistributions(), NumberZone.BACK).values();
+            if (front.entrySet().stream().anyMatch(entry ->
+                    Math.abs(entry.getValue() - artifact.frontProbabilities().get(entry.getKey())) > 1.0e-9)
+                    || back.entrySet().stream().anyMatch(entry ->
+                    Math.abs(entry.getValue() - artifact.backProbabilities().get(entry.getKey())) > 1.0e-9)) {
+                throw new IllegalArgumentException("候选概率与正态分布参数不一致");
+            }
+        } catch (IllegalArgumentException exception) {
+            throw new ModelUnavailableException("历史正态分布模型参数已损坏，请重新训练");
+        }
+    }
+
+    private static void validateFrequencySimilarity(
+            FrequencySimilarityArtifact artifact,
+            ModelSnapshot decayedSnapshot,
+            ModelSnapshot vectorSnapshot) {
+        if (artifact.artifactVersion() != 1
+                || !isValidWeight(artifact.frontDecayedFrequencyWeight())
+                || !isValidWeight(artifact.backDecayedFrequencyWeight())) {
+            throw new ModelUnavailableException("高频相似融合模型参数已损坏，请重新训练");
+        }
+        if (!decayedSnapshot.modelVersion().equals(artifact.decayedFrequencyModelVersion())
+                || !vectorSnapshot.modelVersion().equals(artifact.vectorModelVersion())) {
+            throw new ModelUnavailableException("高频相似融合模型引用的基础模型版本不一致");
         }
     }
 
@@ -158,6 +217,14 @@ public class NextDrawPredictionService {
                         && Double.isFinite(value)
                         && value >= 0.0
                         && value <= 1.0);
+    }
+
+    private static boolean isValidVectorParameters(VectorTransitionParameters parameters) {
+        return parameters != null && parameters.isValid() && parameters.priorStrength() > 0;
+    }
+
+    private static boolean isValidWeight(double value) {
+        return Double.isFinite(value) && value >= 0.0 && value <= 1.0;
     }
 
     private <T> T decode(String json, Class<T> type, String modelName) {

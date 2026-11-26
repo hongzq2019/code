@@ -8,6 +8,7 @@ import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.RejectedExecutionException;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.locks.ReentrantLock;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -18,7 +19,7 @@ import org.springframework.stereotype.Service;
 
 /**
  *
- * 协调四种预测模型的训练、评估和同批次原子激活。
+ * 协调五种预测模型的训练、评估和同批次原子激活。
  *
  */
 @Service
@@ -26,20 +27,19 @@ public class ModelTrainingCoordinator {
 
     private static final Logger LOGGER = LoggerFactory.getLogger(ModelTrainingCoordinator.class);
     private static final int MINIMUM_DRAW_COUNT = 100;
-    private static final String LOGISTIC_ALGORITHM = "logistic-l2-v1";
-    private static final String VECTOR_ALGORITHM = "vector-transition-v1";
-    private static final String ENSEMBLE_ALGORITHM = "dynamic-ensemble-v1";
-    private static final String DECAYED_FREQUENCY_ALGORITHM = "decayed-frequency-v1";
+    private static final String LOGISTIC_ALGORITHM = "logistic-multi-window-v3";
+    private static final String VECTOR_ALGORITHM = "vector-transition-hit-window-v4";
+    private static final String ENSEMBLE_ALGORITHM = "dynamic-ensemble-window-v4";
+    private static final String DECAYED_FREQUENCY_ALGORITHM = "historical-position-gaussian-v2";
+    private static final String FREQUENCY_SIMILARITY_ALGORITHM = "frequency-similarity-window-v3";
 
     private final DrawStore drawStore;
     private final PredictionModelStore modelStore;
     private final ObjectMapper objectMapper;
     private final TaskExecutor taskExecutor;
-    private final NextDrawModelTrainer logisticTrainer;
-    private final VectorTransitionModelTrainer vectorTrainer;
-    private final DynamicEnsembleTrainer ensembleTrainer;
-    private final DecayedFrequencyModelTrainer decayedTrainer;
+    private final MultiWindowModelOptimizer optimizer;
     private final ReentrantLock trainingLock = new ReentrantLock(true);
+    private final AtomicBoolean retrainPending = new AtomicBoolean();
 
     @Autowired
     public ModelTrainingCoordinator(
@@ -47,11 +47,7 @@ public class ModelTrainingCoordinator {
             PredictionModelStore modelStore,
             ObjectMapper objectMapper,
             @Qualifier("modelTrainingExecutor") TaskExecutor taskExecutor) {
-        this(drawStore, modelStore, objectMapper, taskExecutor,
-                new NextDrawModelTrainer(),
-                new VectorTransitionModelTrainer(),
-                new DynamicEnsembleTrainer(),
-                new DecayedFrequencyModelTrainer());
+        this(drawStore, modelStore, objectMapper, taskExecutor, new MultiWindowModelOptimizer());
     }
 
     ModelTrainingCoordinator(
@@ -62,18 +58,28 @@ public class ModelTrainingCoordinator {
             NextDrawModelTrainer logisticTrainer,
             VectorTransitionModelTrainer vectorTrainer,
             DynamicEnsembleTrainer ensembleTrainer,
-            DecayedFrequencyModelTrainer decayedTrainer) {
+            DecayedFrequencyModelTrainer decayedTrainer,
+            FrequencySimilarityTrainer frequencySimilarityTrainer) {
+        this(drawStore, modelStore, objectMapper, taskExecutor, new MultiWindowModelOptimizer(
+                logisticTrainer, vectorTrainer, ensembleTrainer, decayedTrainer, frequencySimilarityTrainer));
+    }
+
+    ModelTrainingCoordinator(DrawStore drawStore, PredictionModelStore modelStore,
+            ObjectMapper objectMapper, TaskExecutor taskExecutor, MultiWindowModelOptimizer optimizer) {
         this.drawStore = drawStore;
         this.modelStore = modelStore;
         this.objectMapper = objectMapper;
         this.taskExecutor = taskExecutor;
-        this.logisticTrainer = logisticTrainer;
-        this.vectorTrainer = vectorTrainer;
-        this.ensembleTrainer = ensembleTrainer;
-        this.decayedTrainer = decayedTrainer;
+        this.optimizer = optimizer;
     }
 
     public TrainingRunStatus requestRetrain() {
+        // 先登记再检查锁；与结束时的检查交错也不会丢失请求。
+        retrainPending.set(true);
+        return enqueuePending();
+    }
+
+    private TrainingRunStatus enqueuePending() {
         if (trainingLock.isLocked()) {
             return TrainingRunStatus.TRAINING_IN_PROGRESS;
         }
@@ -93,15 +99,45 @@ public class ModelTrainingCoordinator {
         }
         long latestDrawId = draws.getLast().id();
         boolean current = modelStore.activeBatch()
-                .map(batch -> batch.getFirst().trainedThroughDrawId() == latestDrawId)
+                .map(batch -> batch.getFirst().trainedThroughDrawId() == latestDrawId
+                        && batch.getFirst().drawCount() == draws.size()
+                        && hasCurrentAlgorithms(batch)
+                        && hasCurrentFingerprint(batch, draws))
                 .orElse(false);
         return current ? TrainingRunStatus.SUCCESS : requestRetrain();
     }
 
+    private boolean hasCurrentFingerprint(List<ModelSnapshot> batch, List<Draw> draws) {
+        ModelSnapshot logistic = batch.stream().filter(model -> model.type() == PredictionModelType.LOGISTIC_REGRESSION)
+                .findFirst().orElseThrow();
+        try {
+            return TrainingHistoryFingerprint.calculate(draws).equals(objectMapper.readTree(logistic.configJson())
+                    .path("trainingHistoryFingerprint").asText());
+        } catch (JsonProcessingException exception) {
+            return false;
+        }
+    }
+
+    private static boolean hasCurrentAlgorithms(List<ModelSnapshot> batch) {
+        return hasAlgorithmVersion(batch, PredictionModelType.LOGISTIC_REGRESSION, LOGISTIC_ALGORITHM)
+                && hasAlgorithmVersion(batch, PredictionModelType.VECTOR_TRANSITION, VECTOR_ALGORITHM)
+                && hasAlgorithmVersion(batch, PredictionModelType.DYNAMIC_ENSEMBLE, ENSEMBLE_ALGORITHM)
+                && hasAlgorithmVersion(batch, PredictionModelType.DECAYED_FREQUENCY, DECAYED_FREQUENCY_ALGORITHM)
+                && hasAlgorithmVersion(batch, PredictionModelType.FREQUENCY_SIMILARITY, FREQUENCY_SIMILARITY_ALGORITHM);
+    }
+
+    private static boolean hasAlgorithmVersion(
+            List<ModelSnapshot> batch, PredictionModelType type, String algorithmVersion) {
+        return batch.stream().anyMatch(snapshot -> snapshot.type() == type
+                && algorithmVersion.equals(snapshot.algorithmVersion()));
+    }
+
     public TrainingRunResult retrainNow() {
+        retrainPending.set(true);
         if (!trainingLock.tryLock()) {
             return TrainingRunResult.status(TrainingRunStatus.TRAINING_IN_PROGRESS, "已有模型训练任务正在执行");
         }
+        retrainPending.set(false);
         try {
             return trainLocked();
         } catch (RuntimeException exception) {
@@ -109,6 +145,9 @@ public class ModelTrainingCoordinator {
             return TrainingRunResult.status(TrainingRunStatus.FAILED, "模型训练失败: " + exception.getMessage());
         } finally {
             trainingLock.unlock();
+            if (retrainPending.get()) {
+                enqueuePending();
+            }
         }
     }
 
@@ -119,50 +158,69 @@ public class ModelTrainingCoordinator {
                     TrainingRunStatus.INSUFFICIENT_DATA,
                     "至少需要 " + MINIMUM_DRAW_COUNT + " 期开奖记录，当前为 " + draws.size() + " 期");
         }
-        List<RollingFold> folds = new RollingFoldBuilder().build(draws.size(), TrainingDatasetBuilder.FEATURE_WINDOW);
+        String fingerprint = TrainingHistoryFingerprint.calculate(draws);
+        ModelOptimizationResult optimization = optimizer.optimize(draws);
+        if (!fingerprint.equals(TrainingHistoryFingerprint.calculate(drawStore.allChronological()))) {
+            retrainPending.set(true);
+            return new TrainingRunResult(TrainingRunStatus.HISTORY_CHANGED, null,
+                    "训练期间历史开奖发生变化，本轮未保存或启用模型，已排队重新训练",
+                    List.of(), optimization.summary());
+        }
         String batchVersion = UUID.randomUUID().toString();
         String logisticVersion = "logistic-" + batchVersion;
         String vectorVersion = "vector-" + batchVersion;
         String ensembleVersion = "ensemble-" + batchVersion;
         String decayedVersion = "decayed-frequency-" + batchVersion;
+        String frequencySimilarityVersion = "frequency-similarity-" + batchVersion;
 
-        TrainedLogisticModel logistic = logisticTrainer.train(draws, folds);
-        TrainedVectorTransitionModel vector = vectorTrainer.train(draws, folds);
-        TrainedEnsembleModel ensemble = ensembleTrainer.train(
-                draws, logistic.validationPredictions(), vector.validationPredictions(),
-                logisticVersion, vectorVersion);
-        TrainedDecayedFrequencyModel decayed = decayedTrainer.train(draws, folds);
-        Draw waterline = draws.getLast();
+        TrainedLogisticModel logistic = optimization.logistic();
+        TrainedVectorTransitionModel vector = optimization.vector();
+        TrainedEnsembleModel ensemble = optimization.ensemble();
+        TrainedDecayedFrequencyModel decayed = optimization.normal();
+        TrainedFrequencySimilarityModel frequencySimilarity = optimization.hybrid();
+        // 未通过时只保存开发段制品，不谎称它已拟合验收段及最新水位。
+        int fittedCount = optimization.eligible() ? draws.size() : optimization.summary().developmentDrawCount();
+        Draw waterline = draws.get(fittedCount - 1);
+        EnsembleArtifact ensembleArtifact = new EnsembleArtifact(1, ensemble.artifact().frontLogisticWeight(),
+                ensemble.artifact().backLogisticWeight(), logisticVersion, vectorVersion);
+        FrequencySimilarityArtifact hybridArtifact = new FrequencySimilarityArtifact(1,
+                frequencySimilarity.artifact().frontDecayedFrequencyWeight(),
+                frequencySimilarity.artifact().backDecayedFrequencyWeight(), decayedVersion, vectorVersion);
         Instant trainedAt = Instant.now();
         List<ModelSnapshot> candidates = List.of(
                 snapshot(PredictionModelType.LOGISTIC_REGRESSION, logisticVersion, LOGISTIC_ALGORITHM,
                         batchVersion, serialize(logistic.artifact()), TrainingDatasetBuilder.FEATURE_WINDOW,
-                        draws.size(), logistic.sampleCount(), waterline, trainedAt, logistic.metrics()),
+                        fittedCount, logistic.sampleCount(), waterline, trainedAt, logistic.metrics()),
                 snapshot(PredictionModelType.VECTOR_TRANSITION, vectorVersion, VECTOR_ALGORITHM,
                         batchVersion, serialize(vector.artifact()), 0,
-                        draws.size(), vector.sampleCount(), waterline, trainedAt, vector.metrics()),
+                        fittedCount, vector.sampleCount(), waterline, trainedAt, vector.metrics()),
                 snapshot(PredictionModelType.DYNAMIC_ENSEMBLE, ensembleVersion, ENSEMBLE_ALGORITHM,
-                        batchVersion, serialize(ensemble.artifact()), 0,
-                        draws.size(), ensemble.validationPredictions().periods().size(),
+                        batchVersion, serialize(ensembleArtifact), 0,
+                        fittedCount, ensemble.validationPredictions().periods().size(),
                         waterline, trainedAt, ensemble.metrics()),
                 snapshot(PredictionModelType.DECAYED_FREQUENCY, decayedVersion, DECAYED_FREQUENCY_ALGORITHM,
                         batchVersion, serialize(decayed.artifact()), 0,
-                        draws.size(), decayed.sampleCount(), waterline, trainedAt, decayed.metrics()));
+                        fittedCount, decayed.sampleCount(), waterline, trainedAt, decayed.metrics()),
+                snapshot(PredictionModelType.FREQUENCY_SIMILARITY,
+                        frequencySimilarityVersion, FREQUENCY_SIMILARITY_ALGORITHM,
+                        batchVersion, serialize(hybridArtifact), 0,
+                        fittedCount, frequencySimilarity.sampleCount(), waterline, trainedAt,
+                        frequencySimilarity.metrics()));
 
-        boolean retainActive = !ensemble.eligible() && modelStore.activeBatch().isPresent();
-        List<ModelSnapshot> persisted = retainActive
-                ? candidates.stream().map(modelStore::saveInactive).toList()
-                : modelStore.activateBatch(candidates);
-        TrainingRunStatus status = retainActive
-                ? TrainingRunStatus.RETAINED_ACTIVE_MODEL : TrainingRunStatus.SUCCESS;
-        String message = retainActive
-                ? "新模型未达到启用条件，已保留当前生效批次"
-                : "四种预测模型已完成训练并生效";
+        boolean eligible = optimization.eligible();
+        boolean hasActive = modelStore.activeBatch().isPresent();
+        List<ModelSnapshot> persisted = eligible ? modelStore.activateBatch(candidates)
+                : candidates.stream().map(modelStore::saveInactive).toList();
+        TrainingRunStatus status = eligible ? TrainingRunStatus.SUCCESS
+                : hasActive ? TrainingRunStatus.RETAINED_ACTIVE_MODEL : TrainingRunStatus.NO_ELIGIBLE_MODEL;
+        String message = eligible ? "五种模型通过独立验收，已重新拟合并整批生效"
+                : hasActive ? "自动优化未通过独立验收，已保留原生效批次；旧批次若未覆盖最新开奖仍不可预测"
+                : "自动优化未通过独立验收，尚无通过验收的生效模型；已保存非生效候选";
         return new TrainingRunResult(
                 status,
                 batchVersion,
                 message,
-                persisted.stream().map(ModelTrainingResult::from).toList());
+                persisted.stream().map(ModelTrainingResult::from).toList(), optimization.summary());
     }
 
     private ModelSnapshot snapshot(

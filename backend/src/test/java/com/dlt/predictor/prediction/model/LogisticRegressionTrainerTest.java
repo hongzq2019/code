@@ -3,9 +3,26 @@ package com.dlt.predictor.prediction.model;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import java.util.List;
+import java.util.stream.IntStream;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.EnumSource;
 
 class LogisticRegressionTrainerTest {
+
+    @ParameterizedTest
+    @EnumSource(NumberZone.class)
+    void uninformativeFeaturesRecoverActualInclusionProbability(NumberZone zone) {
+        List<BinarySample> samples = IntStream.rangeClosed(1, zone.candidateCount())
+                .mapToObj(number -> new BinarySample(number, new double[6],
+                        number <= zone.selectionCount() ? 1 : 0)).toList();
+        LogisticRegressionTrainer trainer = new LogisticRegressionTrainer();
+
+        double probability = trainer.predict(trainer.train(samples, zone), new double[6]);
+
+        assertThat(probability).isCloseTo(zone.selectionCount() / (double) zone.candidateCount(),
+                org.assertj.core.data.Offset.offset(1.0e-6));
+    }
 
     @Test
     void trainingIsDeterministicAndProducesProbabilities() {
